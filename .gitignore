@@ -1,0 +1,8 @@
+.DS_Store
+
+# Local planning scratch.
+qemu-tmp102-implementation-plan.md
+
+# Upstream QEMU checkout and generated build output live locally.
+# Track project docs/patches here instead of committing the full source tree.
+qemu/
