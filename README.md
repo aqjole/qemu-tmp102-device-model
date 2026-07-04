@@ -22,9 +22,10 @@ The local upstream QEMU checkout lives in `qemu/` and is intentionally ignored b
 `qemu/`, `reference/`, `review_book.md`, and the implementation plan are local
 learning/work files and are ignored by git.
 
-`qemu-tmp102-source/` contains a browseable snapshot of only the TMP102 QEMU
-source files that were created for this project. `patches/` contains the full
-QEMU patch series, including small build-system integration edits.
+`qemu-tmp102-source/` contains a browseable snapshot of the TMP102 QEMU source
+files plus a small integration patch showing the exact QEMU build-system edits
+needed to wire them in. `patches/` contains the same work as an ordered patch
+series.
 
 ## Development History
 
@@ -51,7 +52,8 @@ The QEMU device model was developed as a 16-commit patch series. The patches in
 ```
 
 For browsing the final source directly, see `qemu-tmp102-source/`. For applying
-the work to a QEMU checkout, use the ordered patch files in `patches/`.
+the work to a QEMU checkout with the development history preserved, use the
+ordered patch files in `patches/`.
 
 ## Build QEMU
 
