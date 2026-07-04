@@ -1,7 +1,7 @@
 From 4a1b79f3a2eb4ce80e33045408107382a0fe7edb Mon Sep 17 00:00:00 2001
 From: aqjole <aqjole@gmail.com>
 Date: Tue, 23 Jun 2026 22:16:40 +0900
-Subject: [PATCH 05/16] Add TMP102 register I/O qtest
+Subject: [PATCH 05/17] Add TMP102 register I/O qtest
 
 ---
  tests/qtest/meson.build   |  1 +

@@ -1,7 +1,7 @@
 From 55295cf4490606e4ccd37d1422da2060fc3eabc2 Mon Sep 17 00:00:00 2001
 From: aqjole <aqjole@gmail.com>
 Date: Thu, 2 Jul 2026 22:02:16 +0900
-Subject: [PATCH 11/16] Implement TMP102 fault queue
+Subject: [PATCH 11/17] Implement TMP102 fault queue
 
 ---
  hw/sensor/tmp102.c        | 69 ++++++++++++++++++++++++++++++++++-----

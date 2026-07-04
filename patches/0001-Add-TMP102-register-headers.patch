@@ -1,7 +1,7 @@
 From 4b83bcc2f2c888dc6cf242656ed8f896fbb958d5 Mon Sep 17 00:00:00 2001
 From: aqjole <aqjole@gmail.com>
 Date: Sat, 20 Jun 2026 20:28:37 +0900
-Subject: [PATCH 01/16] Add TMP102 register headers
+Subject: [PATCH 01/17] Add TMP102 register headers
 
 ---
  include/hw/sensor/tmp102.h      | 58 ++++++++++++++++++++

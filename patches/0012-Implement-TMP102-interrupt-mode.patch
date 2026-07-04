@@ -1,7 +1,7 @@
 From 4da67d4ade5429212892cf69450d3b1eb5d68d06 Mon Sep 17 00:00:00 2001
 From: aqjole <aqjole@gmail.com>
 Date: Fri, 3 Jul 2026 10:16:28 +0900
-Subject: [PATCH 12/16] Implement TMP102 interrupt mode
+Subject: [PATCH 12/17] Implement TMP102 interrupt mode
 
 ---
  hw/sensor/tmp102.c        | 45 ++++++++++++++++++++++++++++++++++++++-

@@ -21,10 +21,19 @@ index 420fdc3..a5b6b74 100644
  system_ss.add(when: 'CONFIG_TMP421', if_true: files('tmp421.c'))
  system_ss.add(when: 'CONFIG_DPS310', if_true: files('dps310.c'))
 diff --git a/tests/qtest/meson.build b/tests/qtest/meson.build
-index 4897325..2acc53a 100644
+index 4897325..6355d0e 100644
 --- a/tests/qtest/meson.build
 +++ b/tests/qtest/meson.build
-@@ -317,6 +317,7 @@ qos_test_ss.add(
+@@ -252,6 +252,8 @@ qtests_arm = \
+   (config_all_devices.has_key('CONFIG_FSI_APB2OPB_ASPEED') ? ['aspeed_fsi-test'] : []) + \
+   (config_all_devices.has_key('CONFIG_STM32L4X5_SOC') and
+    config_all_devices.has_key('CONFIG_DM163')? ['dm163-test'] : []) + \
++  (config_all_devices.has_key('CONFIG_RASPI') and
++   config_all_devices.has_key('CONFIG_TMP102') ? ['tmp102-migration-test'] : []) + \
+   ['arm-cpu-features',
+    'boot-serial-test']
+ 
+@@ -317,6 +319,7 @@ qos_test_ss.add(
    'rs5c372-test.c',
    'sdhci-test.c',
    'spapr-phb-test.c',
@@ -32,3 +41,13 @@ index 4897325..2acc53a 100644
    'tmp105-test.c',
    'emc141x-test.c',
    'usb-hcd-ohci-test.c',
+@@ -401,6 +404,9 @@ qtests = {
+   'qos-test': [chardev, io, qos_test_ss.apply({}).sources()],
+   'tpm-crb-swtpm-test': [io, tpmemu_files],
+   'tpm-crb-test': [io, tpmemu_files],
++  'tmp102-migration-test': files('tmp102-migration-test.c',
++                                 'migration/migration-qmp.c',
++                                 'migration/migration-util.c'),
+   'tpm-tis-swtpm-test': [io, tpmemu_files, 'tpm-tis-util.c'],
+   'tpm-tis-test': [io, tpmemu_files, 'tpm-tis-util.c'],
+   'tpm-tis-i2c-test': [io, tpmemu_files, 'tpm-tis-i2c-util.c', 'qtest_aspeed.c'],

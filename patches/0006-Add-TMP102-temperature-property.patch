@@ -1,7 +1,7 @@
 From 7a81ef21615c6483cb0f07875bb4138ee7e01447 Mon Sep 17 00:00:00 2001
 From: aqjole <aqjole@gmail.com>
 Date: Thu, 2 Jul 2026 21:09:15 +0900
-Subject: [PATCH 06/16] Add TMP102 temperature property
+Subject: [PATCH 06/17] Add TMP102 temperature property
 
 ---
  hw/sensor/tmp102.c        | 54 +++++++++++++++++++++++++++++++++++++--

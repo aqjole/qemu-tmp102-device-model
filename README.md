@@ -29,7 +29,7 @@ series.
 
 ## Development History
 
-The QEMU device model was developed as a 16-commit patch series. The patches in
+The QEMU device model was developed as a 17-commit patch series. The patches in
 `patches/` preserve that progression:
 
 ```text
@@ -49,6 +49,7 @@ The QEMU device model was developed as a 16-commit patch series. The patches in
 0014  one-shot mode
 0015  preserve command-line temperature across reset
 0016  VMState support and command-line temperature qtest
+0017  migration qtest for VMState
 ```
 
 For browsing the final source directly, see `qemu-tmp102-source/`. For applying
@@ -83,8 +84,8 @@ meson test -C build qemu:qtest-arm/qos-test
 ```
 
 The TMP102 tests cover register I/O, temperature encoding, ALERT behavior,
-interrupt mode, shutdown/one-shot behavior, VMState support, and command-line
-temperature initialization.
+interrupt mode, shutdown/one-shot behavior, command-line temperature
+initialization, and VMState migration.
 
 You can also confirm QEMU knows about the device:
 

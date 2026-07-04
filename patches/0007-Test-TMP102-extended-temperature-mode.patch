@@ -1,7 +1,7 @@
 From 03a240ec99b0fba8e78d6a7c0de6817acc68a620 Mon Sep 17 00:00:00 2001
 From: aqjole <aqjole@gmail.com>
 Date: Thu, 2 Jul 2026 21:23:43 +0900
-Subject: [PATCH 07/16] Test TMP102 extended temperature mode
+Subject: [PATCH 07/17] Test TMP102 extended temperature mode
 
 ---
  tests/qtest/tmp102-test.c | 16 ++++++++++++++++
