@@ -1,0 +1,89 @@
+From 4a1b79f3a2eb4ce80e33045408107382a0fe7edb Mon Sep 17 00:00:00 2001
+From: aqjole <aqjole@gmail.com>
+Date: Tue, 23 Jun 2026 22:16:40 +0900
+Subject: [PATCH 05/16] Add TMP102 register I/O qtest
+
+---
+ tests/qtest/meson.build   |  1 +
+ tests/qtest/tmp102-test.c | 57 +++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 58 insertions(+)
+ create mode 100644 tests/qtest/tmp102-test.c
+
+diff --git a/tests/qtest/meson.build b/tests/qtest/meson.build
+index 4897325..2acc53a 100644
+--- a/tests/qtest/meson.build
++++ b/tests/qtest/meson.build
+@@ -317,6 +317,7 @@ qos_test_ss.add(
+   'rs5c372-test.c',
+   'sdhci-test.c',
+   'spapr-phb-test.c',
++  'tmp102-test.c',
+   'tmp105-test.c',
+   'emc141x-test.c',
+   'usb-hcd-ohci-test.c',
+diff --git a/tests/qtest/tmp102-test.c b/tests/qtest/tmp102-test.c
+new file mode 100644
+index 0000000..746ef21
+--- /dev/null
++++ b/tests/qtest/tmp102-test.c
+@@ -0,0 +1,57 @@
++/*
++ * QTest testcase for the TMP102 temperature sensor
++ *
++ * This work is licensed under the terms of the GNU GPL, version 2 or later.
++ * See the COPYING file in the top-level directory.
++ */
++
++#include "qemu/osdep.h"
++
++#include "libqtest-single.h"
++#include "libqos/qgraph.h"
++#include "libqos/i2c.h"
++#include "hw/sensor/tmp102_regs.h"
++
++#define TMP102_TEST_ID   "tmp102-test"
++#define TMP102_TEST_ADDR 0x48
++
++static void register_io(void *obj, void *data, QGuestAllocator *alloc)
++{
++    QI2CDevice *i2cdev = (QI2CDevice *)obj;
++
++    g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_TEMPERATURE), ==, 0x0000);
++    g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_CONFIG), ==, 0x60a0);
++    g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_T_LOW), ==, 0x4b00);
++    g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_T_HIGH), ==, 0x5000);
++
++    i2c_set16(i2cdev, TMP102_REG_T_LOW, 0x1230);
++    g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_T_LOW), ==, 0x1230);
++
++    i2c_set16(i2cdev, TMP102_REG_T_HIGH, 0x4560);
++    g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_T_HIGH), ==, 0x4560);
++
++    i2c_set16(i2cdev, TMP102_REG_TEMPERATURE, 0x7ff0);
++    g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_TEMPERATURE), ==, 0x0000);
++
++    i2c_set16(i2cdev, TMP102_REG_CONFIG, 0x0000);
++    g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_CONFIG), ==, 0x6020);
++
++    i2c_set16(i2cdev, TMP102_REG_CONFIG, 0xffff);
++    g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_CONFIG), ==, 0xfff0);
++}
++
++static void tmp102_register_nodes(void)
++{
++    QOSGraphEdgeOptions opts = {
++        .extra_device_opts = "id=" TMP102_TEST_ID ",address=0x48"
++    };
++
++    add_qi2c_address(&opts, &(QI2CAddress) { TMP102_TEST_ADDR });
++
++    qos_node_create_driver("tmp102", i2c_device_create);
++    qos_node_consumes("tmp102", "i2c-bus", &opts);
++
++    qos_add_test("register-io", "tmp102", register_io, NULL);
++}
++
++libqos_init(tmp102_register_nodes);
+-- 
+2.39.5 (Apple Git-154)
+

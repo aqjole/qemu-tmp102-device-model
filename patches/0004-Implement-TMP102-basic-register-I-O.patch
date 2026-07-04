@@ -1,0 +1,107 @@
+From 3c73757ef52c66b26efbd380ea64062dbbe845b5 Mon Sep 17 00:00:00 2001
+From: aqjole <aqjole@gmail.com>
+Date: Sun, 21 Jun 2026 18:25:52 +0900
+Subject: [PATCH 04/16] Implement TMP102 basic register I/O
+
+---
+ hw/sensor/tmp102.c | 72 ++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 72 insertions(+)
+
+diff --git a/hw/sensor/tmp102.c b/hw/sensor/tmp102.c
+index 1112542..f370ed4 100644
+--- a/hw/sensor/tmp102.c
++++ b/hw/sensor/tmp102.c
+@@ -5,18 +5,90 @@
+ #include "qapi/error.h"
+ #include "qemu/module.h"
+ 
++static void tmp102_read(TMP102State *s)
++{
++    s->len = 0;
++
++    switch (s->pointer & TMP102_POINTER_MASK) {
++    case TMP102_REG_TEMPERATURE:
++        s->buf[s->len++] = ((uint16_t)s->temperature) >> 8;
++        s->buf[s->len++] = ((uint16_t)s->temperature) >> 0;
++        break;
++    case TMP102_REG_CONFIG:
++        s->buf[s->len++] = s->config >> 8;
++        s->buf[s->len++] = s->config >> 0;
++        break;
++    case TMP102_REG_T_LOW:
++        s->buf[s->len++] = s->t_low >> 8;
++        s->buf[s->len++] = s->t_low >> 0;
++        break;
++    case TMP102_REG_T_HIGH:
++        s->buf[s->len++] = s->t_high >> 8;
++        s->buf[s->len++] = s->t_high >> 0;
++        break;
++    }
++}
++
++static void tmp102_write(TMP102State *s)
++{
++    uint16_t value = ((uint16_t)s->buf[0] << 8) | s->buf[1];
++
++    switch (s->pointer & TMP102_POINTER_MASK) {
++    case TMP102_REG_TEMPERATURE:
++        break;
++    case TMP102_REG_CONFIG:
++        s->config = (s->config & TMP102_CONFIG_READ_ONLY) |
++                    (value & TMP102_CONFIG_WRITABLE);
++        break;
++    case TMP102_REG_T_LOW:
++        s->t_low = value;
++        break;
++    case TMP102_REG_T_HIGH:
++        s->t_high = value;
++        break;
++    }
++}
++
+ static uint8_t tmp102_rx(I2CSlave *i2c)
+ {
++    TMP102State *s = TMP102(i2c);
++
++    if (s->len < 2) {
++        return s->buf[s->len++];
++    }
++
+     return 0xff;
+ }
+ 
+ static int tmp102_tx(I2CSlave *i2c, uint8_t data)
+ {
++    TMP102State *s = TMP102(i2c);
++
++    if (s->len == 0) {
++        s->pointer = data & TMP102_POINTER_MASK;
++    } else {
++        if (s->len <= 2) {
++            s->buf[s->len - 1] = data;
++        }
++
++        if (s->len == 2) {
++            tmp102_write(s);
++        }
++    }
++
++    s->len++;
+     return 0;
+ }
+ 
+ static int tmp102_event(I2CSlave *i2c, enum i2c_event event)
+ {
++    TMP102State *s = TMP102(i2c);
++
++    if (event == I2C_START_RECV) {
++        tmp102_read(s);
++    }
++
++    s->len = 0;
+     return 0;
+ }
+ 
+-- 
+2.39.5 (Apple Git-154)
+

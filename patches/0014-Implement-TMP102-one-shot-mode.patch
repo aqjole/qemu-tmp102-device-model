@@ -1,0 +1,94 @@
+From 0ff8528123b47742c8438abefeee12294436ba8c Mon Sep 17 00:00:00 2001
+From: aqjole <aqjole@gmail.com>
+Date: Fri, 3 Jul 2026 21:04:09 +0900
+Subject: [PATCH 14/16] Implement TMP102 one-shot mode
+
+---
+ hw/sensor/tmp102.c        | 15 +++++++++++----
+ tests/qtest/tmp102-test.c | 13 +++++++++++++
+ 2 files changed, 24 insertions(+), 4 deletions(-)
+
+diff --git a/hw/sensor/tmp102.c b/hw/sensor/tmp102.c
+index be72f7d..2fbe028 100644
+--- a/hw/sensor/tmp102.c
++++ b/hw/sensor/tmp102.c
+@@ -59,11 +59,11 @@ static void tmp102_alert_update(TMP102State *s)
+     qemu_set_irq(s->alert, tmp102_alert_level(s));
+ }
+ 
+-static void tmp102_alert_sample(TMP102State *s)
++static void tmp102_alert_sample(TMP102State *s, bool one_shot)
+ {
+     uint8_t faults = tmp102_fault_count(s);
+ 
+-    if (s->config & TMP102_CONFIG_SD) {
++    if ((s->config & TMP102_CONFIG_SD) && !one_shot) {
+         tmp102_faults_reset(s);
+         tmp102_alert_update(s);
+         return;
+@@ -176,7 +176,7 @@ static void tmp102_set_temperature(Object *obj, Visitor *v, const char *name,
+     }
+ 
+     s->temperature = (int16_t)(temp * 16 / 1000);
+-    tmp102_alert_sample(s);
++    tmp102_alert_sample(s, false);
+ }
+ 
+ static void tmp102_read(TMP102State *s)
+@@ -213,6 +213,7 @@ static void tmp102_write(TMP102State *s)
+     uint16_t value = ((uint16_t)s->buf[0] << 8) | s->buf[1];
+     uint16_t old_config = s->config;
+     bool reset_faults = false;
++    bool one_shot = false;
+ 
+     switch (s->pointer & TMP102_POINTER_MASK) {
+     case TMP102_REG_TEMPERATURE:
+@@ -225,6 +226,8 @@ static void tmp102_write(TMP102State *s)
+             !(old_config & TMP102_CONFIG_SD)) {
+             s->alert_asserted = false;
+         }
++        one_shot = (s->config & TMP102_CONFIG_SD) &&
++                   (value & TMP102_CONFIG_OS);
+         reset_faults = true;
+         break;
+     case TMP102_REG_T_LOW:
+@@ -240,7 +243,11 @@ static void tmp102_write(TMP102State *s)
+     if (reset_faults) {
+         tmp102_faults_reset(s);
+     }
+-    tmp102_alert_update(s);
++    if (one_shot) {
++        tmp102_alert_sample(s, true);
++    } else {
++        tmp102_alert_update(s);
++    }
+ }
+ 
+ static uint8_t tmp102_rx(I2CSlave *i2c)
+diff --git a/tests/qtest/tmp102-test.c b/tests/qtest/tmp102-test.c
+index 73cd4a2..c22f76d 100644
+--- a/tests/qtest/tmp102-test.c
++++ b/tests/qtest/tmp102-test.c
+@@ -215,6 +215,19 @@ static void shutdown_mode(void *obj, void *data, QGuestAllocator *alloc)
+     g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_TEMPERATURE), ==, 0x5000);
+     g_assert_true(get_irq(0));
+ 
++    i2c_set16(i2cdev, TMP102_REG_CONFIG,
++              TMP102_CONFIG_RESET | TMP102_CONFIG_SD | TMP102_CONFIG_OS);
++    g_assert_false(get_irq(0));
++    g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_CONFIG), ==, 0xe180);
++
++    qmp_tmp102_set_temperature(TMP102_TEST_ID, 74000);
++    g_assert_false(get_irq(0));
++
++    i2c_set16(i2cdev, TMP102_REG_CONFIG,
++              TMP102_CONFIG_RESET | TMP102_CONFIG_SD | TMP102_CONFIG_OS);
++    g_assert_true(get_irq(0));
++    g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_CONFIG), ==, 0xe1a0);
++
+     i2c_set16(i2cdev, TMP102_REG_CONFIG, TMP102_CONFIG_RESET);
+     g_assert_true(get_irq(0));
+ 
+-- 
+2.39.5 (Apple Git-154)
+

@@ -1,0 +1,107 @@
+From 0bdd80afcd1e1224257aa4584269eeb2ba6a1df6 Mon Sep 17 00:00:00 2001
+From: aqjole <aqjole@gmail.com>
+Date: Thu, 2 Jul 2026 21:55:34 +0900
+Subject: [PATCH 10/16] Report TMP102 alert status bit
+
+---
+ hw/sensor/tmp102.c        | 22 ++++++++++++++++++----
+ tests/qtest/tmp102-test.c | 10 ++++++++--
+ 2 files changed, 26 insertions(+), 6 deletions(-)
+
+diff --git a/hw/sensor/tmp102.c b/hw/sensor/tmp102.c
+index a2d1fdd..461165d 100644
+--- a/hw/sensor/tmp102.c
++++ b/hw/sensor/tmp102.c
+@@ -29,6 +29,11 @@ static int16_t tmp102_decode_limit(TMP102State *s, uint16_t value)
+                       TMP102_TEMP_NORMAL_BITS);
+ }
+ 
++static bool tmp102_alert_level(TMP102State *s)
++{
++    return s->alert_asserted ^ !(s->config & TMP102_CONFIG_POL);
++}
++
+ static void tmp102_alert_update(TMP102State *s)
+ {
+     if (!(s->config & TMP102_CONFIG_TM)) {
+@@ -39,8 +44,16 @@ static void tmp102_alert_update(TMP102State *s)
+         }
+     }
+ 
+-    qemu_set_irq(s->alert,
+-                 s->alert_asserted ^ !(s->config & TMP102_CONFIG_POL));
++    qemu_set_irq(s->alert, tmp102_alert_level(s));
++}
++
++static uint16_t tmp102_config_read(TMP102State *s)
++{
++    if (tmp102_alert_level(s)) {
++        return s->config | TMP102_CONFIG_AL;
++    }
++
++    return s->config & ~TMP102_CONFIG_AL;
+ }
+ 
+ static void tmp102_get_temperature(Object *obj, Visitor *v, const char *name,
+@@ -84,8 +97,9 @@ static void tmp102_read(TMP102State *s)
+         s->buf[s->len++] = value >> 0;
+         break;
+     case TMP102_REG_CONFIG:
+-        s->buf[s->len++] = s->config >> 8;
+-        s->buf[s->len++] = s->config >> 0;
++        value = tmp102_config_read(s);
++        s->buf[s->len++] = value >> 8;
++        s->buf[s->len++] = value >> 0;
+         break;
+     case TMP102_REG_T_LOW:
+         s->buf[s->len++] = s->t_low >> 8;
+diff --git a/tests/qtest/tmp102-test.c b/tests/qtest/tmp102-test.c
+index 77e8b50..b6342cf 100644
+--- a/tests/qtest/tmp102-test.c
++++ b/tests/qtest/tmp102-test.c
+@@ -61,7 +61,7 @@ static void register_io(void *obj, void *data, QGuestAllocator *alloc)
+     g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_CONFIG), ==, 0x6020);
+ 
+     i2c_set16(i2cdev, TMP102_REG_CONFIG, 0xffff);
+-    g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_CONFIG), ==, 0xfff0);
++    g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_CONFIG), ==, 0xffd0);
+ }
+ 
+ static void temperature(void *obj, void *data, QGuestAllocator *alloc)
+@@ -114,26 +114,32 @@ static void alert(void *obj, void *data, QGuestAllocator *alloc)
+ 
+     qmp_tmp102_set_temperature(TMP102_TEST_ID, 25000);
+     g_assert_true(get_irq(0));
++    g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_CONFIG), ==, 0x60a0);
+ 
+     qmp_tmp102_set_temperature(TMP102_TEST_ID, 80000);
+     g_assert_false(get_irq(0));
++    g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_CONFIG), ==, 0x6080);
+ 
+     qmp_tmp102_set_temperature(TMP102_TEST_ID, 78000);
+     g_assert_false(get_irq(0));
++    g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_CONFIG), ==, 0x6080);
+ 
+     qmp_tmp102_set_temperature(TMP102_TEST_ID, 74000);
+     g_assert_true(get_irq(0));
++    g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_CONFIG), ==, 0x60a0);
+ 
+     i2c_set16(i2cdev, TMP102_REG_CONFIG,
+               TMP102_CONFIG_RESET | TMP102_CONFIG_POL);
+-    g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_CONFIG), ==, 0x64a0);
+     g_assert_false(get_irq(0));
++    g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_CONFIG), ==, 0x6480);
+ 
+     qmp_tmp102_set_temperature(TMP102_TEST_ID, 80000);
+     g_assert_true(get_irq(0));
++    g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_CONFIG), ==, 0x64a0);
+ 
+     qmp_tmp102_set_temperature(TMP102_TEST_ID, 74000);
+     g_assert_false(get_irq(0));
++    g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_CONFIG), ==, 0x6480);
+ }
+ 
+ static void tmp102_register_nodes(void)
+-- 
+2.39.5 (Apple Git-154)
+

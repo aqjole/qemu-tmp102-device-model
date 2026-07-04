@@ -1,0 +1,35 @@
+From 9cba90c89c44471683e25390b87b42c064494568 Mon Sep 17 00:00:00 2001
+From: aqjole <aqjole@gmail.com>
+Date: Sun, 21 Jun 2026 15:34:04 +0900
+Subject: [PATCH 03/16] Wire TMP102 into QEMU build
+
+---
+ hw/sensor/Kconfig     | 5 +++++
+ hw/sensor/meson.build | 1 +
+ 2 files changed, 6 insertions(+)
+
+diff --git a/hw/sensor/Kconfig b/hw/sensor/Kconfig
+index bc6331b..3bc51c5 100644
+--- a/hw/sensor/Kconfig
++++ b/hw/sensor/Kconfig
+@@ -1,3 +1,8 @@
++config TMP102
++    bool
++    depends on I2C
++    default y if I2C_DEVICES
++
+ config TMP105
+     bool
+     depends on I2C
+diff --git a/hw/sensor/meson.build b/hw/sensor/meson.build
+index 420fdc3..a5b6b74 100644
+--- a/hw/sensor/meson.build
++++ b/hw/sensor/meson.build
+@@ -1,3 +1,4 @@
++system_ss.add(when: 'CONFIG_TMP102', if_true: files('tmp102.c'))
+ system_ss.add(when: 'CONFIG_TMP105', if_true: files('tmp105.c'))
+ system_ss.add(when: 'CONFIG_TMP421', if_true: files('tmp421.c'))
+ system_ss.add(when: 'CONFIG_DPS310', if_true: files('dps310.c'))
+-- 
+2.39.5 (Apple Git-154)
+

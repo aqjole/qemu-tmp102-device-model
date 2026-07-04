@@ -1,0 +1,124 @@
+From ce4ff9a9c291d3fcc08e12c6d21fda758ef10b44 Mon Sep 17 00:00:00 2001
+From: aqjole <aqjole@gmail.com>
+Date: Thu, 2 Jul 2026 21:46:42 +0900
+Subject: [PATCH 08/16] Implement TMP102 comparator alert
+
+---
+ hw/sensor/tmp102.c        | 30 ++++++++++++++++++++++++++++++
+ tests/qtest/tmp102-test.c | 24 ++++++++++++++++++++++++
+ 2 files changed, 54 insertions(+)
+
+diff --git a/hw/sensor/tmp102.c b/hw/sensor/tmp102.c
+index 440828d..a2d1fdd 100644
+--- a/hw/sensor/tmp102.c
++++ b/hw/sensor/tmp102.c
+@@ -4,6 +4,7 @@
+ #include "hw/sensor/tmp102.h"
+ #include "qapi/error.h"
+ #include "qapi/visitor.h"
++#include "qemu/bitops.h"
+ #include "qemu/module.h"
+ 
+ static uint16_t tmp102_encode_temperature(TMP102State *s)
+@@ -17,6 +18,31 @@ static uint16_t tmp102_encode_temperature(TMP102State *s)
+     return (uint16_t)((uint16_t)s->temperature << TMP102_TEMP_NORMAL_SHIFT);
+ }
+ 
++static int16_t tmp102_decode_limit(TMP102State *s, uint16_t value)
++{
++    if (s->config & TMP102_CONFIG_EM) {
++        return sextract32(value, TMP102_TEMP_EXTENDED_SHIFT,
++                          TMP102_TEMP_EXTENDED_BITS);
++    }
++
++    return sextract32(value, TMP102_TEMP_NORMAL_SHIFT,
++                      TMP102_TEMP_NORMAL_BITS);
++}
++
++static void tmp102_alert_update(TMP102State *s)
++{
++    if (!(s->config & TMP102_CONFIG_TM)) {
++        if (s->temperature < tmp102_decode_limit(s, s->t_low)) {
++            s->alert_asserted = false;
++        } else if (s->temperature >= tmp102_decode_limit(s, s->t_high)) {
++            s->alert_asserted = true;
++        }
++    }
++
++    qemu_set_irq(s->alert,
++                 s->alert_asserted ^ !(s->config & TMP102_CONFIG_POL));
++}
++
+ static void tmp102_get_temperature(Object *obj, Visitor *v, const char *name,
+                                    void *opaque, Error **errp)
+ {
+@@ -42,6 +68,7 @@ static void tmp102_set_temperature(Object *obj, Visitor *v, const char *name,
+     }
+ 
+     s->temperature = (int16_t)(temp * 16 / 1000);
++    tmp102_alert_update(s);
+ }
+ 
+ static void tmp102_read(TMP102State *s)
+@@ -89,6 +116,8 @@ static void tmp102_write(TMP102State *s)
+         s->t_high = value;
+         break;
+     }
++
++    tmp102_alert_update(s);
+ }
+ 
+ static uint8_t tmp102_rx(I2CSlave *i2c)
+@@ -148,6 +177,7 @@ static void tmp102_reset(I2CSlave *i2c)
+     s->detect_falling = false;
+     s->high_faults = 0;
+     s->low_faults = 0;
++    tmp102_alert_update(s);
+ }
+ 
+ static void tmp102_realize(DeviceState *dev, Error **errp)
+diff --git a/tests/qtest/tmp102-test.c b/tests/qtest/tmp102-test.c
+index d862b1c..368d0ac 100644
+--- a/tests/qtest/tmp102-test.c
++++ b/tests/qtest/tmp102-test.c
+@@ -102,6 +102,29 @@ static void temperature(void *obj, void *data, QGuestAllocator *alloc)
+     g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_TEMPERATURE), ==, 0xf381);
+ }
+ 
++static void alert(void *obj, void *data, QGuestAllocator *alloc)
++{
++    QI2CDevice *i2cdev = (QI2CDevice *)obj;
++
++    qtest_irq_intercept_out(global_qtest, TMP102_TEST_ID);
++
++    i2c_set16(i2cdev, TMP102_REG_CONFIG, TMP102_CONFIG_RESET);
++    i2c_set16(i2cdev, TMP102_REG_T_LOW, TMP102_T_LOW_RESET);
++    i2c_set16(i2cdev, TMP102_REG_T_HIGH, TMP102_T_HIGH_RESET);
++
++    qmp_tmp102_set_temperature(TMP102_TEST_ID, 25000);
++    g_assert_true(get_irq(0));
++
++    qmp_tmp102_set_temperature(TMP102_TEST_ID, 80000);
++    g_assert_false(get_irq(0));
++
++    qmp_tmp102_set_temperature(TMP102_TEST_ID, 78000);
++    g_assert_false(get_irq(0));
++
++    qmp_tmp102_set_temperature(TMP102_TEST_ID, 74000);
++    g_assert_true(get_irq(0));
++}
++
+ static void tmp102_register_nodes(void)
+ {
+     QOSGraphEdgeOptions opts = {
+@@ -115,6 +138,7 @@ static void tmp102_register_nodes(void)
+ 
+     qos_add_test("register-io", "tmp102", register_io, NULL);
+     qos_add_test("temperature", "tmp102", temperature, NULL);
++    qos_add_test("alert", "tmp102", alert, NULL);
+ }
+ 
+ libqos_init(tmp102_register_nodes);
+-- 
+2.39.5 (Apple Git-154)
+

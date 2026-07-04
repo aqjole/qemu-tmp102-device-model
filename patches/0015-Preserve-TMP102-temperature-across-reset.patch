@@ -1,0 +1,24 @@
+From 993547a2ed13e0914c37d025b91f4b18ad4eb106 Mon Sep 17 00:00:00 2001
+From: aqjole <aqjole@gmail.com>
+Date: Sat, 4 Jul 2026 15:46:09 +0900
+Subject: [PATCH 15/16] Preserve TMP102 temperature across reset
+
+---
+ hw/sensor/tmp102.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/hw/sensor/tmp102.c b/hw/sensor/tmp102.c
+index 2fbe028..c98430a 100644
+--- a/hw/sensor/tmp102.c
++++ b/hw/sensor/tmp102.c
+@@ -300,7 +300,6 @@ static void tmp102_reset(I2CSlave *i2c)
+     s->pointer = TMP102_REG_TEMPERATURE;
+     s->len = 0;
+     s->config = TMP102_CONFIG_RESET;
+-    s->temperature = TMP102_TEMP_RESET;
+     s->t_low = TMP102_T_LOW_RESET;
+     s->t_high = TMP102_T_HIGH_RESET;
+     s->alert_asserted = false;
+-- 
+2.39.5 (Apple Git-154)
+

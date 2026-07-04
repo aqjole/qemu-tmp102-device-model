@@ -1,0 +1,109 @@
+From 66dc173ebc505dd915b96a38fd8f26ef7d7991f2 Mon Sep 17 00:00:00 2001
+From: aqjole <aqjole@gmail.com>
+Date: Sat, 4 Jul 2026 16:08:36 +0900
+Subject: [PATCH 16/16] Add TMP102 VMState support
+
+---
+ hw/sensor/tmp102.c        | 32 ++++++++++++++++++++++++++++++++
+ tests/qtest/tmp102-test.c | 14 ++++++++++++++
+ 2 files changed, 46 insertions(+)
+
+diff --git a/hw/sensor/tmp102.c b/hw/sensor/tmp102.c
+index c98430a..c3bd5e0 100644
+--- a/hw/sensor/tmp102.c
++++ b/hw/sensor/tmp102.c
+@@ -6,6 +6,7 @@
+ #include "qapi/visitor.h"
+ #include "qemu/bitops.h"
+ #include "qemu/module.h"
++#include "migration/vmstate.h"
+ 
+ static uint16_t tmp102_encode_temperature(TMP102State *s)
+ {
+@@ -308,6 +309,36 @@ static void tmp102_reset(I2CSlave *i2c)
+     tmp102_alert_update(s);
+ }
+ 
++static int tmp102_post_load(void *opaque, int version_id)
++{
++    TMP102State *s = opaque;
++
++    tmp102_alert_update(s);
++    return 0;
++}
++
++static const VMStateDescription vmstate_tmp102 = {
++    .name = "TMP102",
++    .version_id = 1,
++    .minimum_version_id = 1,
++    .post_load = tmp102_post_load,
++    .fields = (const VMStateField[]) {
++        VMSTATE_UINT8(len, TMP102State),
++        VMSTATE_UINT8_ARRAY(buf, TMP102State, 2),
++        VMSTATE_UINT8(pointer, TMP102State),
++        VMSTATE_UINT16(config, TMP102State),
++        VMSTATE_INT16(temperature, TMP102State),
++        VMSTATE_UINT16(t_low, TMP102State),
++        VMSTATE_UINT16(t_high, TMP102State),
++        VMSTATE_BOOL(alert_asserted, TMP102State),
++        VMSTATE_BOOL(detect_falling, TMP102State),
++        VMSTATE_UINT8(high_faults, TMP102State),
++        VMSTATE_UINT8(low_faults, TMP102State),
++        VMSTATE_I2C_SLAVE(i2c, TMP102State),
++        VMSTATE_END_OF_LIST()
++    }
++};
++
+ static void tmp102_realize(DeviceState *dev, Error **errp)
+ {
+     I2CSlave *i2c = I2C_SLAVE(dev);
+@@ -330,6 +361,7 @@ static void tmp102_class_init(ObjectClass *klass, const void *data)
+     I2CSlaveClass *k = I2C_SLAVE_CLASS(klass);
+ 
+     dc->realize = tmp102_realize;
++    dc->vmsd = &vmstate_tmp102;
+     k->event = tmp102_event;
+     k->recv = tmp102_rx;
+     k->send = tmp102_tx;
+diff --git a/tests/qtest/tmp102-test.c b/tests/qtest/tmp102-test.c
+index c22f76d..b3582bd 100644
+--- a/tests/qtest/tmp102-test.c
++++ b/tests/qtest/tmp102-test.c
+@@ -102,6 +102,15 @@ static void temperature(void *obj, void *data, QGuestAllocator *alloc)
+     g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_TEMPERATURE), ==, 0xf381);
+ }
+ 
++static void command_line_temperature(void *obj, void *data,
++                                     QGuestAllocator *alloc)
++{
++    QI2CDevice *i2cdev = (QI2CDevice *)obj;
++
++    g_assert_cmpint(qmp_tmp102_get_temperature(TMP102_TEST_ID), ==, 25000);
++    g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_TEMPERATURE), ==, 0x1900);
++}
++
+ static void alert(void *obj, void *data, QGuestAllocator *alloc)
+ {
+     QI2CDevice *i2cdev = (QI2CDevice *)obj;
+@@ -249,6 +258,9 @@ static void tmp102_register_nodes(void)
+     QOSGraphEdgeOptions opts = {
+         .extra_device_opts = "id=" TMP102_TEST_ID ",address=0x48"
+     };
++    QOSGraphTestOptions command_line_temperature_opts = {
++        .edge.extra_device_opts = "temperature=25000"
++    };
+ 
+     add_qi2c_address(&opts, &(QI2CAddress) { TMP102_TEST_ADDR });
+ 
+@@ -257,6 +269,8 @@ static void tmp102_register_nodes(void)
+ 
+     qos_add_test("register-io", "tmp102", register_io, NULL);
+     qos_add_test("temperature", "tmp102", temperature, NULL);
++    qos_add_test("command-line-temperature", "tmp102",
++                 command_line_temperature, &command_line_temperature_opts);
+     qos_add_test("alert", "tmp102", alert, NULL);
+     qos_add_test("interrupt", "tmp102", interrupt, NULL);
+     qos_add_test("shutdown", "tmp102", shutdown_mode, NULL);
+-- 
+2.39.5 (Apple Git-154)
+

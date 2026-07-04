@@ -1,0 +1,163 @@
+From 55295cf4490606e4ccd37d1422da2060fc3eabc2 Mon Sep 17 00:00:00 2001
+From: aqjole <aqjole@gmail.com>
+Date: Thu, 2 Jul 2026 22:02:16 +0900
+Subject: [PATCH 11/16] Implement TMP102 fault queue
+
+---
+ hw/sensor/tmp102.c        | 69 ++++++++++++++++++++++++++++++++++-----
+ tests/qtest/tmp102-test.c | 16 +++++++++
+ 2 files changed, 77 insertions(+), 8 deletions(-)
+
+diff --git a/hw/sensor/tmp102.c b/hw/sensor/tmp102.c
+index 461165d..7238592 100644
+--- a/hw/sensor/tmp102.c
++++ b/hw/sensor/tmp102.c
+@@ -34,17 +34,64 @@ static bool tmp102_alert_level(TMP102State *s)
+     return s->alert_asserted ^ !(s->config & TMP102_CONFIG_POL);
+ }
+ 
++static uint8_t tmp102_fault_count(TMP102State *s)
++{
++    switch (s->config & TMP102_CONFIG_FAULT_QUEUE) {
++    case TMP102_CONFIG_FAULTS_2:
++        return 2;
++    case TMP102_CONFIG_FAULTS_4:
++        return 4;
++    case TMP102_CONFIG_FAULTS_6:
++        return 6;
++    default:
++        return 1;
++    }
++}
++
++static void tmp102_faults_reset(TMP102State *s)
++{
++    s->high_faults = 0;
++    s->low_faults = 0;
++}
++
+ static void tmp102_alert_update(TMP102State *s)
+ {
++    qemu_set_irq(s->alert, tmp102_alert_level(s));
++}
++
++static void tmp102_alert_sample(TMP102State *s)
++{
++    uint8_t faults = tmp102_fault_count(s);
++
+     if (!(s->config & TMP102_CONFIG_TM)) {
+-        if (s->temperature < tmp102_decode_limit(s, s->t_low)) {
+-            s->alert_asserted = false;
+-        } else if (s->temperature >= tmp102_decode_limit(s, s->t_high)) {
+-            s->alert_asserted = true;
++        if (s->alert_asserted) {
++            s->high_faults = 0;
++
++            if (s->temperature < tmp102_decode_limit(s, s->t_low)) {
++                s->low_faults++;
++                if (s->low_faults >= faults) {
++                    s->alert_asserted = false;
++                    tmp102_faults_reset(s);
++                }
++            } else {
++                s->low_faults = 0;
++            }
++        } else {
++            s->low_faults = 0;
++
++            if (s->temperature >= tmp102_decode_limit(s, s->t_high)) {
++                s->high_faults++;
++                if (s->high_faults >= faults) {
++                    s->alert_asserted = true;
++                    tmp102_faults_reset(s);
++                }
++            } else {
++                s->high_faults = 0;
++            }
+         }
+     }
+ 
+-    qemu_set_irq(s->alert, tmp102_alert_level(s));
++    tmp102_alert_update(s);
+ }
+ 
+ static uint16_t tmp102_config_read(TMP102State *s)
+@@ -81,7 +128,7 @@ static void tmp102_set_temperature(Object *obj, Visitor *v, const char *name,
+     }
+ 
+     s->temperature = (int16_t)(temp * 16 / 1000);
+-    tmp102_alert_update(s);
++    tmp102_alert_sample(s);
+ }
+ 
+ static void tmp102_read(TMP102State *s)
+@@ -115,6 +162,7 @@ static void tmp102_read(TMP102State *s)
+ static void tmp102_write(TMP102State *s)
+ {
+     uint16_t value = ((uint16_t)s->buf[0] << 8) | s->buf[1];
++    bool reset_faults = false;
+ 
+     switch (s->pointer & TMP102_POINTER_MASK) {
+     case TMP102_REG_TEMPERATURE:
+@@ -122,15 +170,21 @@ static void tmp102_write(TMP102State *s)
+     case TMP102_REG_CONFIG:
+         s->config = (s->config & TMP102_CONFIG_READ_ONLY) |
+                     (value & TMP102_CONFIG_WRITABLE);
++        reset_faults = true;
+         break;
+     case TMP102_REG_T_LOW:
+         s->t_low = value;
++        reset_faults = true;
+         break;
+     case TMP102_REG_T_HIGH:
+         s->t_high = value;
++        reset_faults = true;
+         break;
+     }
+ 
++    if (reset_faults) {
++        tmp102_faults_reset(s);
++    }
+     tmp102_alert_update(s);
+ }
+ 
+@@ -189,8 +243,7 @@ static void tmp102_reset(I2CSlave *i2c)
+     s->t_high = TMP102_T_HIGH_RESET;
+     s->alert_asserted = false;
+     s->detect_falling = false;
+-    s->high_faults = 0;
+-    s->low_faults = 0;
++    tmp102_faults_reset(s);
+     tmp102_alert_update(s);
+ }
+ 
+diff --git a/tests/qtest/tmp102-test.c b/tests/qtest/tmp102-test.c
+index b6342cf..fbaea54 100644
+--- a/tests/qtest/tmp102-test.c
++++ b/tests/qtest/tmp102-test.c
+@@ -140,6 +140,22 @@ static void alert(void *obj, void *data, QGuestAllocator *alloc)
+     qmp_tmp102_set_temperature(TMP102_TEST_ID, 74000);
+     g_assert_false(get_irq(0));
+     g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_CONFIG), ==, 0x6480);
++
++    i2c_set16(i2cdev, TMP102_REG_CONFIG,
++              TMP102_CONFIG_RESET | TMP102_CONFIG_FAULTS_2);
++    g_assert_true(get_irq(0));
++
++    qmp_tmp102_set_temperature(TMP102_TEST_ID, 80000);
++    g_assert_true(get_irq(0));
++
++    qmp_tmp102_set_temperature(TMP102_TEST_ID, 80000);
++    g_assert_false(get_irq(0));
++
++    qmp_tmp102_set_temperature(TMP102_TEST_ID, 74000);
++    g_assert_false(get_irq(0));
++
++    qmp_tmp102_set_temperature(TMP102_TEST_ID, 74000);
++    g_assert_true(get_irq(0));
+ }
+ 
+ static void tmp102_register_nodes(void)
+-- 
+2.39.5 (Apple Git-154)
+

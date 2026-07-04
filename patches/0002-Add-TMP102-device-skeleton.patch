@@ -1,0 +1,90 @@
+From 95f98268d6b6cfbc7ff73c42a8c1768346eb2f4e Mon Sep 17 00:00:00 2001
+From: aqjole <aqjole@gmail.com>
+Date: Sun, 21 Jun 2026 14:23:31 +0900
+Subject: [PATCH 02/16] Add TMP102 device skeleton
+
+---
+ hw/sensor/tmp102.c | 71 ++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 71 insertions(+)
+ create mode 100644 hw/sensor/tmp102.c
+
+diff --git a/hw/sensor/tmp102.c b/hw/sensor/tmp102.c
+new file mode 100644
+index 0000000..1112542
+--- /dev/null
++++ b/hw/sensor/tmp102.c
+@@ -0,0 +1,71 @@
++#include "qemu/osdep.h"
++#include "hw/i2c/i2c.h"
++#include "hw/core/irq.h"
++#include "hw/sensor/tmp102.h"
++#include "qapi/error.h"
++#include "qemu/module.h"
++
++static uint8_t tmp102_rx(I2CSlave *i2c)
++{
++    return 0xff;
++}
++
++static int tmp102_tx(I2CSlave *i2c, uint8_t data)
++{
++    return 0;
++}
++
++static int tmp102_event(I2CSlave *i2c, enum i2c_event event)
++{
++    return 0;
++}
++
++static void tmp102_reset(I2CSlave *i2c)
++{
++    TMP102State *s = TMP102(i2c);
++
++    s->pointer = TMP102_REG_TEMPERATURE;
++    s->len = 0;
++    s->config = TMP102_CONFIG_RESET;
++    s->temperature = TMP102_TEMP_RESET;
++    s->t_low = TMP102_T_LOW_RESET;
++    s->t_high = TMP102_T_HIGH_RESET;
++    s->alert_asserted = false;
++    s->detect_falling = false;
++    s->high_faults = 0;
++    s->low_faults = 0;
++}
++
++static void tmp102_realize(DeviceState *dev, Error **errp)
++{
++    I2CSlave *i2c = I2C_SLAVE(dev);
++    TMP102State *s = TMP102(i2c);
++
++    qdev_init_gpio_out(&i2c->qdev, &s->alert, 1);
++    tmp102_reset(i2c);
++}
++
++static void tmp102_class_init(ObjectClass *klass, const void *data)
++{
++    DeviceClass *dc = DEVICE_CLASS(klass);
++    I2CSlaveClass *k = I2C_SLAVE_CLASS(klass);
++
++    dc->realize = tmp102_realize;
++    k->event = tmp102_event;
++    k->recv = tmp102_rx;
++    k->send = tmp102_tx;
++}
++
++static const TypeInfo tmp102_info = {
++    .name          = TYPE_TMP102,
++    .parent        = TYPE_I2C_SLAVE,
++    .instance_size = sizeof(TMP102State),
++    .class_init    = tmp102_class_init,
++};
++
++static void tmp102_register_types(void)
++{
++    type_register_static(&tmp102_info);
++}
++
++type_init(tmp102_register_types)
+-- 
+2.39.5 (Apple Git-154)
+

@@ -1,0 +1,34 @@
+From 0764925afdafa303863f41224cc0cac25356fca2 Mon Sep 17 00:00:00 2001
+From: aqjole <aqjole@gmail.com>
+Date: Thu, 2 Jul 2026 21:50:16 +0900
+Subject: [PATCH 09/16] Test TMP102 alert polarity
+
+---
+ tests/qtest/tmp102-test.c | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/tests/qtest/tmp102-test.c b/tests/qtest/tmp102-test.c
+index 368d0ac..77e8b50 100644
+--- a/tests/qtest/tmp102-test.c
++++ b/tests/qtest/tmp102-test.c
+@@ -123,6 +123,17 @@ static void alert(void *obj, void *data, QGuestAllocator *alloc)
+ 
+     qmp_tmp102_set_temperature(TMP102_TEST_ID, 74000);
+     g_assert_true(get_irq(0));
++
++    i2c_set16(i2cdev, TMP102_REG_CONFIG,
++              TMP102_CONFIG_RESET | TMP102_CONFIG_POL);
++    g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_CONFIG), ==, 0x64a0);
++    g_assert_false(get_irq(0));
++
++    qmp_tmp102_set_temperature(TMP102_TEST_ID, 80000);
++    g_assert_true(get_irq(0));
++
++    qmp_tmp102_set_temperature(TMP102_TEST_ID, 74000);
++    g_assert_false(get_irq(0));
+ }
+ 
+ static void tmp102_register_nodes(void)
+-- 
+2.39.5 (Apple Git-154)
+

@@ -1,0 +1,39 @@
+From 03a240ec99b0fba8e78d6a7c0de6817acc68a620 Mon Sep 17 00:00:00 2001
+From: aqjole <aqjole@gmail.com>
+Date: Thu, 2 Jul 2026 21:23:43 +0900
+Subject: [PATCH 07/16] Test TMP102 extended temperature mode
+
+---
+ tests/qtest/tmp102-test.c | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/tests/qtest/tmp102-test.c b/tests/qtest/tmp102-test.c
+index d2cecd4..d862b1c 100644
+--- a/tests/qtest/tmp102-test.c
++++ b/tests/qtest/tmp102-test.c
+@@ -84,6 +84,22 @@ static void temperature(void *obj, void *data, QGuestAllocator *alloc)
+     qmp_tmp102_set_temperature(TMP102_TEST_ID, -25000);
+     g_assert_cmpint(qmp_tmp102_get_temperature(TMP102_TEST_ID), ==, -25000);
+     g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_TEMPERATURE), ==, 0xe700);
++
++    i2c_set16(i2cdev, TMP102_REG_CONFIG,
++              TMP102_CONFIG_RESET | TMP102_CONFIG_EM);
++    g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_CONFIG), ==, 0x60b0);
++
++    qmp_tmp102_set_temperature(TMP102_TEST_ID, 0);
++    g_assert_cmpint(qmp_tmp102_get_temperature(TMP102_TEST_ID), ==, 0);
++    g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_TEMPERATURE), ==, 0x0001);
++
++    qmp_tmp102_set_temperature(TMP102_TEST_ID, 25000);
++    g_assert_cmpint(qmp_tmp102_get_temperature(TMP102_TEST_ID), ==, 25000);
++    g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_TEMPERATURE), ==, 0x0c81);
++
++    qmp_tmp102_set_temperature(TMP102_TEST_ID, -25000);
++    g_assert_cmpint(qmp_tmp102_get_temperature(TMP102_TEST_ID), ==, -25000);
++    g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_TEMPERATURE), ==, 0xf381);
+ }
+ 
+ static void tmp102_register_nodes(void)
+-- 
+2.39.5 (Apple Git-154)
+

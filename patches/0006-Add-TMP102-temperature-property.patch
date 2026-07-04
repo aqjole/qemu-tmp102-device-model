@@ -1,0 +1,177 @@
+From 7a81ef21615c6483cb0f07875bb4138ee7e01447 Mon Sep 17 00:00:00 2001
+From: aqjole <aqjole@gmail.com>
+Date: Thu, 2 Jul 2026 21:09:15 +0900
+Subject: [PATCH 06/16] Add TMP102 temperature property
+
+---
+ hw/sensor/tmp102.c        | 54 +++++++++++++++++++++++++++++++++++++--
+ tests/qtest/tmp102-test.c | 47 ++++++++++++++++++++++++++++++++++
+ 2 files changed, 99 insertions(+), 2 deletions(-)
+
+diff --git a/hw/sensor/tmp102.c b/hw/sensor/tmp102.c
+index f370ed4..440828d 100644
+--- a/hw/sensor/tmp102.c
++++ b/hw/sensor/tmp102.c
+@@ -3,16 +3,58 @@
+ #include "hw/core/irq.h"
+ #include "hw/sensor/tmp102.h"
+ #include "qapi/error.h"
++#include "qapi/visitor.h"
+ #include "qemu/module.h"
+ 
++static uint16_t tmp102_encode_temperature(TMP102State *s)
++{
++    if (s->config & TMP102_CONFIG_EM) {
++        return (uint16_t)(((uint16_t)s->temperature <<
++                           TMP102_TEMP_EXTENDED_SHIFT) |
++                          TMP102_TEMP_EXTENDED_FLAG);
++    }
++
++    return (uint16_t)((uint16_t)s->temperature << TMP102_TEMP_NORMAL_SHIFT);
++}
++
++static void tmp102_get_temperature(Object *obj, Visitor *v, const char *name,
++                                   void *opaque, Error **errp)
++{
++    TMP102State *s = TMP102(obj);
++    int64_t value = s->temperature * 1000 / 16;
++
++    visit_type_int(v, name, &value, errp);
++}
++
++static void tmp102_set_temperature(Object *obj, Visitor *v, const char *name,
++                                   void *opaque, Error **errp)
++{
++    TMP102State *s = TMP102(obj);
++    int64_t temp;
++
++    if (!visit_type_int(v, name, &temp, errp)) {
++        return;
++    }
++    if (temp >= 128000 || temp < -128000) {
++        error_setg(errp, "value %" PRId64 " milli-Celsius is out of range",
++                   temp);
++        return;
++    }
++
++    s->temperature = (int16_t)(temp * 16 / 1000);
++}
++
+ static void tmp102_read(TMP102State *s)
+ {
++    uint16_t value;
++
+     s->len = 0;
+ 
+     switch (s->pointer & TMP102_POINTER_MASK) {
+     case TMP102_REG_TEMPERATURE:
+-        s->buf[s->len++] = ((uint16_t)s->temperature) >> 8;
+-        s->buf[s->len++] = ((uint16_t)s->temperature) >> 0;
++        value = tmp102_encode_temperature(s);
++        s->buf[s->len++] = value >> 8;
++        s->buf[s->len++] = value >> 0;
+         break;
+     case TMP102_REG_CONFIG:
+         s->buf[s->len++] = s->config >> 8;
+@@ -117,6 +159,13 @@ static void tmp102_realize(DeviceState *dev, Error **errp)
+     tmp102_reset(i2c);
+ }
+ 
++static void tmp102_initfn(Object *obj)
++{
++    object_property_add(obj, "temperature", "int",
++                        tmp102_get_temperature,
++                        tmp102_set_temperature, NULL, NULL);
++}
++
+ static void tmp102_class_init(ObjectClass *klass, const void *data)
+ {
+     DeviceClass *dc = DEVICE_CLASS(klass);
+@@ -132,6 +181,7 @@ static const TypeInfo tmp102_info = {
+     .name          = TYPE_TMP102,
+     .parent        = TYPE_I2C_SLAVE,
+     .instance_size = sizeof(TMP102State),
++    .instance_init = tmp102_initfn,
+     .class_init    = tmp102_class_init,
+ };
+ 
+diff --git a/tests/qtest/tmp102-test.c b/tests/qtest/tmp102-test.c
+index 746ef21..d2cecd4 100644
+--- a/tests/qtest/tmp102-test.c
++++ b/tests/qtest/tmp102-test.c
+@@ -10,11 +10,35 @@
+ #include "libqtest-single.h"
+ #include "libqos/qgraph.h"
+ #include "libqos/i2c.h"
++#include "qobject/qdict.h"
+ #include "hw/sensor/tmp102_regs.h"
+ 
+ #define TMP102_TEST_ID   "tmp102-test"
+ #define TMP102_TEST_ADDR 0x48
+ 
++static int qmp_tmp102_get_temperature(const char *id)
++{
++    QDict *response;
++    int ret;
++
++    response = qmp("{ 'execute': 'qom-get', 'arguments': { 'path': %s, "
++                   "'property': 'temperature' } }", id);
++    g_assert(qdict_haskey(response, "return"));
++    ret = qdict_get_int(response, "return");
++    qobject_unref(response);
++    return ret;
++}
++
++static void qmp_tmp102_set_temperature(const char *id, int value)
++{
++    QDict *response;
++
++    response = qmp("{ 'execute': 'qom-set', 'arguments': { 'path': %s, "
++                   "'property': 'temperature', 'value': %d } }", id, value);
++    g_assert(qdict_haskey(response, "return"));
++    qobject_unref(response);
++}
++
+ static void register_io(void *obj, void *data, QGuestAllocator *alloc)
+ {
+     QI2CDevice *i2cdev = (QI2CDevice *)obj;
+@@ -40,6 +64,28 @@ static void register_io(void *obj, void *data, QGuestAllocator *alloc)
+     g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_CONFIG), ==, 0xfff0);
+ }
+ 
++static void temperature(void *obj, void *data, QGuestAllocator *alloc)
++{
++    QI2CDevice *i2cdev = (QI2CDevice *)obj;
++
++    i2c_set16(i2cdev, TMP102_REG_CONFIG, TMP102_CONFIG_RESET);
++
++    g_assert_cmpint(qmp_tmp102_get_temperature(TMP102_TEST_ID), ==, 0);
++    g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_TEMPERATURE), ==, 0x0000);
++
++    qmp_tmp102_set_temperature(TMP102_TEST_ID, 20000);
++    g_assert_cmpint(qmp_tmp102_get_temperature(TMP102_TEST_ID), ==, 20000);
++    g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_TEMPERATURE), ==, 0x1400);
++
++    qmp_tmp102_set_temperature(TMP102_TEST_ID, 25000);
++    g_assert_cmpint(qmp_tmp102_get_temperature(TMP102_TEST_ID), ==, 25000);
++    g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_TEMPERATURE), ==, 0x1900);
++
++    qmp_tmp102_set_temperature(TMP102_TEST_ID, -25000);
++    g_assert_cmpint(qmp_tmp102_get_temperature(TMP102_TEST_ID), ==, -25000);
++    g_assert_cmphex(i2c_get16(i2cdev, TMP102_REG_TEMPERATURE), ==, 0xe700);
++}
++
+ static void tmp102_register_nodes(void)
+ {
+     QOSGraphEdgeOptions opts = {
+@@ -52,6 +98,7 @@ static void tmp102_register_nodes(void)
+     qos_node_consumes("tmp102", "i2c-bus", &opts);
+ 
+     qos_add_test("register-io", "tmp102", register_io, NULL);
++    qos_add_test("temperature", "tmp102", temperature, NULL);
+ }
+ 
+ libqos_init(tmp102_register_nodes);
+-- 
+2.39.5 (Apple Git-154)
+
