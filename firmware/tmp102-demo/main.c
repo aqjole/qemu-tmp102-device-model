@@ -3,7 +3,16 @@
 
 int main(void)
 {
+    uart_init();
+
     uint16_t raw = tmp102_read_raw();
+
+    if (raw == TMP102_READ_ERROR) {
+        uart_puts("TMP102 read failed\n");
+        while (1) {
+        }
+    }
+
     int temp_c = tmp102_decode_celsius(raw);
 
     uart_puts("TMP102 raw: ");

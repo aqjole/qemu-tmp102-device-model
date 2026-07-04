@@ -1,9 +1,17 @@
 #include "uart.h"
 
-#define UART0_BASE 0x09000000u
+#define UART0_BASE 0x3f201000u
 #define UART_DR    (*(volatile uint32_t *)(UART0_BASE + 0x00))
 #define UART_FR    (*(volatile uint32_t *)(UART0_BASE + 0x18))
+#define UART_CR    (*(volatile uint32_t *)(UART0_BASE + 0x30))
 #define UART_TXFF  (1u << 5)
+#define UART_CR_UARTEN (1u << 0)
+#define UART_CR_TXE    (1u << 8)
+
+void uart_init(void)
+{
+    UART_CR = UART_CR_UARTEN | UART_CR_TXE;
+}
 
 void uart_putc(char c)
 {
