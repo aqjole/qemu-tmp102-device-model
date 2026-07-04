@@ -2,8 +2,8 @@
 
 [![CI](https://github.com/aqjole/qemu-tmp102-device-model/actions/workflows/ci.yml/badge.svg)](https://github.com/aqjole/qemu-tmp102-device-model/actions/workflows/ci.yml)
 
-This repo tracks a learning project that adds a TMP102 I2C temperature-sensor
-model to QEMU and a tiny bare-metal ARM firmware demo that talks to it.
+This repository adds a TMP102 I2C temperature-sensor model to QEMU and includes
+a tiny bare-metal ARM firmware demo that talks to it.
 
 Why this project:
 - It models real hardware behavior inside QEMU instead of mocking it in app code.
@@ -28,7 +28,7 @@ The local upstream QEMU checkout lives in `qemu/` and is intentionally ignored b
 ```
 
 `qemu/`, `reference/`, `review_book.md`, and the implementation plan are local
-learning/work files and are ignored by git.
+development/reference files and are ignored by git.
 
 `qemu-tmp102-source/` contains a browseable snapshot of the TMP102 QEMU source
 files plus a small integration patch showing the exact QEMU build-system edits
