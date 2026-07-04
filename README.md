@@ -26,6 +26,33 @@ learning/work files and are ignored by git.
 source files that were created for this project. `patches/` contains the full
 QEMU patch series, including small build-system integration edits.
 
+## Development History
+
+The QEMU device model was developed as a 16-commit patch series. The patches in
+`patches/` preserve that progression:
+
+```text
+0001  register headers
+0002  device skeleton
+0003  QEMU build wiring
+0004  register I/O
+0005  register I/O qtest
+0006  temperature property
+0007  extended temperature mode test
+0008  comparator ALERT
+0009  ALERT polarity test
+0010  ALERT status bit
+0011  fault queue
+0012  interrupt mode
+0013  shutdown mode
+0014  one-shot mode
+0015  preserve command-line temperature across reset
+0016  VMState support and command-line temperature qtest
+```
+
+For browsing the final source directly, see `qemu-tmp102-source/`. For applying
+the work to a QEMU checkout, use the ordered patch files in `patches/`.
+
 ## Build QEMU
 
 From the project root:
