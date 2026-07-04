@@ -1,5 +1,7 @@
 # QEMU TMP102 Device Model
 
+[![CI](https://github.com/aqjole/qemu-tmp102-device-model/actions/workflows/ci.yml/badge.svg)](https://github.com/aqjole/qemu-tmp102-device-model/actions/workflows/ci.yml)
+
 This repo tracks a learning project that adds a TMP102 I2C temperature-sensor
 model to QEMU and a tiny bare-metal ARM firmware demo that talks to it.
 
@@ -12,6 +14,7 @@ The local upstream QEMU checkout lives in `qemu/` and is intentionally ignored b
 ├── README.md
 ├── docs/
 ├── firmware/tmp102-demo/
+├── .github/workflows/
 ├── patches/
 ├── qemu-tmp102-source/
 ├── reference/
@@ -26,6 +29,13 @@ learning/work files and are ignored by git.
 files plus a small integration patch showing the exact QEMU build-system edits
 needed to wire them in. `patches/` contains the same work as an ordered patch
 series.
+
+## CI
+
+GitHub Actions checks the project from a clean base: it clones QEMU at the
+pinned commit the patch series was developed against, applies `patches/` with
+`git am`, builds `qemu-system-arm`, runs the TMP102 qtests, and runs the
+firmware host test.
 
 ## Development History
 
@@ -80,7 +90,9 @@ Run the ARM qtests:
 
 ```sh
 cd qemu
-meson test -C build qemu:qtest-arm/qos-test
+meson test -C build --print-errorlogs \
+  qemu:qtest-arm/qos-test \
+  qemu:qtest-arm/tmp102-migration-test
 ```
 
 The TMP102 tests cover register I/O, temperature encoding, ALERT behavior,
