@@ -1,0 +1,404 @@
+From 6e2bdeadce865bb0a67bc8cfdc4f0e13ce5be7bc Mon Sep 17 00:00:00 2001
+From: aqjole <aqjole@gmail.com>
+Date: Sat, 4 Jul 2026 18:12:19 +0900
+Subject: [PATCH 18/18] Add TMP102 fault injection support
+
+---
+ hw/sensor/tmp102.c                  |  73 +++++++++++-
+ include/hw/sensor/tmp102.h          |   8 ++
+ tests/qtest/meson.build             |   3 +
+ tests/qtest/tmp102-fault-test.c     | 178 ++++++++++++++++++++++++++++
+ tests/qtest/tmp102-migration-test.c |  12 ++
+ 5 files changed, 271 insertions(+), 3 deletions(-)
+ create mode 100644 tests/qtest/tmp102-fault-test.c
+
+diff --git a/hw/sensor/tmp102.c b/hw/sensor/tmp102.c
+index c3bd5e0..6b16761 100644
+--- a/hw/sensor/tmp102.c
++++ b/hw/sensor/tmp102.c
+@@ -57,7 +57,8 @@ static void tmp102_faults_reset(TMP102State *s)
+ 
+ static void tmp102_alert_update(TMP102State *s)
+ {
+-    qemu_set_irq(s->alert, tmp102_alert_level(s));
++    qemu_set_irq(s->alert,
++                 s->stuck_alert ? s->stuck_alert_level : tmp102_alert_level(s));
+ }
+ 
+ static void tmp102_alert_sample(TMP102State *s, bool one_shot)
+@@ -180,6 +181,54 @@ static void tmp102_set_temperature(Object *obj, Visitor *v, const char *name,
+     tmp102_alert_sample(s, false);
+ }
+ 
++static bool tmp102_get_inject_corrupt_data(Object *obj, Error **errp)
++{
++    TMP102State *s = TMP102(obj);
++
++    return s->inject_corrupt_data;
++}
++
++static void tmp102_set_inject_corrupt_data(Object *obj, bool value,
++                                           Error **errp)
++{
++    TMP102State *s = TMP102(obj);
++
++    s->inject_corrupt_data = value;
++}
++
++static bool tmp102_get_stuck_alert(Object *obj, Error **errp)
++{
++    TMP102State *s = TMP102(obj);
++
++    return s->stuck_alert;
++}
++
++static void tmp102_set_stuck_alert(Object *obj, bool value, Error **errp)
++{
++    TMP102State *s = TMP102(obj);
++
++    if (value && !s->stuck_alert) {
++        s->stuck_alert_level = tmp102_alert_level(s);
++    }
++
++    s->stuck_alert = value;
++    tmp102_alert_update(s);
++}
++
++static bool tmp102_get_inject_nack(Object *obj, Error **errp)
++{
++    TMP102State *s = TMP102(obj);
++
++    return s->inject_nack;
++}
++
++static void tmp102_set_inject_nack(Object *obj, bool value, Error **errp)
++{
++    TMP102State *s = TMP102(obj);
++
++    s->inject_nack = value;
++}
++
+ static void tmp102_read(TMP102State *s)
+ {
+     uint16_t value;
+@@ -189,7 +238,7 @@ static void tmp102_read(TMP102State *s)
+ 
+     switch (s->pointer & TMP102_POINTER_MASK) {
+     case TMP102_REG_TEMPERATURE:
+-        value = tmp102_encode_temperature(s);
++        value = s->inject_corrupt_data ? 0xffff : tmp102_encode_temperature(s);
+         s->buf[s->len++] = value >> 8;
+         s->buf[s->len++] = value >> 0;
+         break;
+@@ -286,6 +335,11 @@ static int tmp102_event(I2CSlave *i2c, enum i2c_event event)
+ {
+     TMP102State *s = TMP102(i2c);
+ 
++    if (s->inject_nack &&
++        (event == I2C_START_SEND || event == I2C_START_RECV)) {
++        return 1;
++    }
++
+     if (event == I2C_START_RECV) {
+         tmp102_read(s);
+     }
+@@ -319,7 +373,7 @@ static int tmp102_post_load(void *opaque, int version_id)
+ 
+ static const VMStateDescription vmstate_tmp102 = {
+     .name = "TMP102",
+-    .version_id = 1,
++    .version_id = 2,
+     .minimum_version_id = 1,
+     .post_load = tmp102_post_load,
+     .fields = (const VMStateField[]) {
+@@ -334,6 +388,10 @@ static const VMStateDescription vmstate_tmp102 = {
+         VMSTATE_BOOL(detect_falling, TMP102State),
+         VMSTATE_UINT8(high_faults, TMP102State),
+         VMSTATE_UINT8(low_faults, TMP102State),
++        VMSTATE_BOOL_V(inject_corrupt_data, TMP102State, 2),
++        VMSTATE_BOOL_V(stuck_alert, TMP102State, 2),
++        VMSTATE_BOOL_V(stuck_alert_level, TMP102State, 2),
++        VMSTATE_BOOL_V(inject_nack, TMP102State, 2),
+         VMSTATE_I2C_SLAVE(i2c, TMP102State),
+         VMSTATE_END_OF_LIST()
+     }
+@@ -353,6 +411,15 @@ static void tmp102_initfn(Object *obj)
+     object_property_add(obj, "temperature", "int",
+                         tmp102_get_temperature,
+                         tmp102_set_temperature, NULL, NULL);
++    object_property_add_bool(obj, "inject-corrupt-data",
++                             tmp102_get_inject_corrupt_data,
++                             tmp102_set_inject_corrupt_data);
++    object_property_add_bool(obj, "stuck-alert",
++                             tmp102_get_stuck_alert,
++                             tmp102_set_stuck_alert);
++    object_property_add_bool(obj, "inject-nack",
++                             tmp102_get_inject_nack,
++                             tmp102_set_inject_nack);
+ }
+ 
+ static void tmp102_class_init(ObjectClass *klass, const void *data)
+diff --git a/include/hw/sensor/tmp102.h b/include/hw/sensor/tmp102.h
+index b8fcdaf..6a75e6e 100644
+--- a/include/hw/sensor/tmp102.h
++++ b/include/hw/sensor/tmp102.h
+@@ -29,6 +29,9 @@ OBJECT_DECLARE_SIMPLE_TYPE(TMP102State, TMP102)
+  * @alert_asserted: logical ALERT state before POL is applied.
+  * @detect_falling: false while waiting for high threshold, true while waiting
+  *                  for low threshold.
++ * @inject_corrupt_data: return invalid temperature bytes when reading.
++ * @stuck_alert: keep ALERT output fixed at @stuck_alert_level.
++ * @inject_nack: NACK I2C transfers at START.
+  *
+  * The external QOM temperature property should use milli-Celsius, matching the
+  * TMP105 model. Internally, sixteenths of a degree maps directly to the
+@@ -53,6 +56,11 @@ struct TMP102State {
+     bool detect_falling;
+     uint8_t high_faults;
+     uint8_t low_faults;
++
++    bool inject_corrupt_data;
++    bool stuck_alert;
++    bool stuck_alert_level;
++    bool inject_nack;
+ };
+ 
+ #endif
+diff --git a/tests/qtest/meson.build b/tests/qtest/meson.build
+index 6355d0e..906a77c 100644
+--- a/tests/qtest/meson.build
++++ b/tests/qtest/meson.build
+@@ -252,6 +252,8 @@ qtests_arm = \
+   (config_all_devices.has_key('CONFIG_FSI_APB2OPB_ASPEED') ? ['aspeed_fsi-test'] : []) + \
+   (config_all_devices.has_key('CONFIG_STM32L4X5_SOC') and
+    config_all_devices.has_key('CONFIG_DM163')? ['dm163-test'] : []) + \
++  (config_all_devices.has_key('CONFIG_RASPI') and
++   config_all_devices.has_key('CONFIG_TMP102') ? ['tmp102-fault-test'] : []) + \
+   (config_all_devices.has_key('CONFIG_RASPI') and
+    config_all_devices.has_key('CONFIG_TMP102') ? ['tmp102-migration-test'] : []) + \
+   ['arm-cpu-features',
+@@ -404,6 +406,7 @@ qtests = {
+   'qos-test': [chardev, io, qos_test_ss.apply({}).sources()],
+   'tpm-crb-swtpm-test': [io, tpmemu_files],
+   'tpm-crb-test': [io, tpmemu_files],
++  'tmp102-fault-test': files('tmp102-fault-test.c'),
+   'tmp102-migration-test': files('tmp102-migration-test.c',
+                                  'migration/migration-qmp.c',
+                                  'migration/migration-util.c'),
+diff --git a/tests/qtest/tmp102-fault-test.c b/tests/qtest/tmp102-fault-test.c
+new file mode 100644
+index 0000000..4c3cfbc
+--- /dev/null
++++ b/tests/qtest/tmp102-fault-test.c
+@@ -0,0 +1,178 @@
++/*
++ * QTest fault-injection testcase for the TMP102 temperature sensor
++ *
++ * This work is licensed under the terms of the GNU GPL, version 2 or later.
++ * See the COPYING file in the top-level directory.
++ */
++
++#include "qemu/osdep.h"
++
++#include "hw/i2c/bcm2835_i2c.h"
++#include "hw/sensor/tmp102_regs.h"
++#include "libqtest-single.h"
++#include "qobject/qdict.h"
++
++#define TMP102_TEST_ID   "tmp102-fault-test"
++#define TMP102_TEST_ADDR 0x48
++#define BCM2835_I2C1_BASE 0x3f804000
++
++static void bcm2835_i2c_init_transfer(uint32_t base, bool read)
++{
++    int interrupt = read ? BCM2835_I2C_C_INTR : BCM2835_I2C_C_INTT;
++
++    writel(base + BCM2835_I2C_C,
++           BCM2835_I2C_C_I2CEN | BCM2835_I2C_C_INTD |
++           BCM2835_I2C_C_ST | BCM2835_I2C_C_CLEAR | interrupt | read);
++}
++
++static void bcm2835_i2c_clear_status(uint32_t base)
++{
++    writel(base + BCM2835_I2C_S,
++           BCM2835_I2C_S_DONE | BCM2835_I2C_S_ERR | BCM2835_I2C_S_CLKT);
++}
++
++static void qmp_tmp102_set_temperature(const char *id, int value)
++{
++    QDict *response;
++
++    response = qmp("{ 'execute': 'qom-set', 'arguments': { 'path': %s, "
++                   "'property': 'temperature', 'value': %d } }", id, value);
++    g_assert(qdict_haskey(response, "return"));
++    qobject_unref(response);
++}
++
++static void tmp102_i2c_set16(uint8_t reg, uint16_t value)
++{
++    writel(BCM2835_I2C1_BASE + BCM2835_I2C_A, TMP102_TEST_ADDR);
++    writel(BCM2835_I2C1_BASE + BCM2835_I2C_DLEN, 3);
++
++    bcm2835_i2c_init_transfer(BCM2835_I2C1_BASE, false);
++
++    writel(BCM2835_I2C1_BASE + BCM2835_I2C_FIFO, reg);
++    writel(BCM2835_I2C1_BASE + BCM2835_I2C_FIFO, value >> 8);
++    writel(BCM2835_I2C1_BASE + BCM2835_I2C_FIFO, value & 0xff);
++
++    bcm2835_i2c_clear_status(BCM2835_I2C1_BASE);
++}
++
++static uint16_t tmp102_i2c_get16(uint8_t reg)
++{
++    uint8_t hi;
++    uint8_t lo;
++
++    writel(BCM2835_I2C1_BASE + BCM2835_I2C_A, TMP102_TEST_ADDR);
++    writel(BCM2835_I2C1_BASE + BCM2835_I2C_DLEN, 1);
++
++    bcm2835_i2c_init_transfer(BCM2835_I2C1_BASE, false);
++
++    writel(BCM2835_I2C1_BASE + BCM2835_I2C_FIFO, reg);
++
++    writel(BCM2835_I2C1_BASE + BCM2835_I2C_DLEN, 2);
++    bcm2835_i2c_init_transfer(BCM2835_I2C1_BASE, true);
++
++    hi = readl(BCM2835_I2C1_BASE + BCM2835_I2C_FIFO);
++    lo = readl(BCM2835_I2C1_BASE + BCM2835_I2C_FIFO);
++
++    bcm2835_i2c_clear_status(BCM2835_I2C1_BASE);
++
++    return (hi << 8) | lo;
++}
++
++static uint32_t tmp102_i2c_start_status(bool read)
++{
++    uint32_t status;
++
++    bcm2835_i2c_clear_status(BCM2835_I2C1_BASE);
++    writel(BCM2835_I2C1_BASE + BCM2835_I2C_A, TMP102_TEST_ADDR);
++    writel(BCM2835_I2C1_BASE + BCM2835_I2C_DLEN, 0);
++
++    bcm2835_i2c_init_transfer(BCM2835_I2C1_BASE, read);
++    status = readl(BCM2835_I2C1_BASE + BCM2835_I2C_S);
++    bcm2835_i2c_clear_status(BCM2835_I2C1_BASE);
++
++    return status;
++}
++
++static void test_corrupt_data(void)
++{
++    qtest_qom_set_bool(global_qtest, TMP102_TEST_ID, "inject-corrupt-data",
++                       false);
++    qmp_tmp102_set_temperature(TMP102_TEST_ID, 25000);
++
++    g_assert_cmphex(tmp102_i2c_get16(TMP102_REG_TEMPERATURE), ==, 0x1900);
++
++    qtest_qom_set_bool(global_qtest, TMP102_TEST_ID, "inject-corrupt-data",
++                       true);
++    g_assert_true(qtest_qom_get_bool(global_qtest, TMP102_TEST_ID,
++                                     "inject-corrupt-data"));
++    g_assert_cmphex(tmp102_i2c_get16(TMP102_REG_TEMPERATURE), ==, 0xffff);
++    g_assert_cmphex(tmp102_i2c_get16(TMP102_REG_CONFIG), ==,
++                    TMP102_CONFIG_RESET);
++
++    qtest_qom_set_bool(global_qtest, TMP102_TEST_ID, "inject-corrupt-data",
++                       false);
++    g_assert_cmphex(tmp102_i2c_get16(TMP102_REG_TEMPERATURE), ==, 0x1900);
++}
++
++static void test_stuck_alert(void)
++{
++    qtest_irq_intercept_out(global_qtest, TMP102_TEST_ID);
++
++    qtest_qom_set_bool(global_qtest, TMP102_TEST_ID, "stuck-alert", false);
++    tmp102_i2c_set16(TMP102_REG_CONFIG, TMP102_CONFIG_RESET);
++    tmp102_i2c_set16(TMP102_REG_T_LOW, TMP102_T_LOW_RESET);
++    tmp102_i2c_set16(TMP102_REG_T_HIGH, TMP102_T_HIGH_RESET);
++
++    qmp_tmp102_set_temperature(TMP102_TEST_ID, 25000);
++    g_assert_true(get_irq(0));
++
++    qtest_qom_set_bool(global_qtest, TMP102_TEST_ID, "stuck-alert", true);
++    g_assert_true(qtest_qom_get_bool(global_qtest, TMP102_TEST_ID,
++                                     "stuck-alert"));
++
++    qmp_tmp102_set_temperature(TMP102_TEST_ID, 80000);
++    g_assert_true(get_irq(0));
++
++    qtest_qom_set_bool(global_qtest, TMP102_TEST_ID, "stuck-alert", false);
++    g_assert_false(get_irq(0));
++}
++
++static void test_inject_nack(void)
++{
++    uint32_t status;
++
++    qtest_qom_set_bool(global_qtest, TMP102_TEST_ID, "inject-nack", false);
++    status = tmp102_i2c_start_status(false);
++    g_assert_cmphex(status & BCM2835_I2C_S_ERR, ==, 0);
++
++    qtest_qom_set_bool(global_qtest, TMP102_TEST_ID, "inject-nack", true);
++    g_assert_true(qtest_qom_get_bool(global_qtest, TMP102_TEST_ID,
++                                     "inject-nack"));
++
++    status = tmp102_i2c_start_status(false);
++    g_assert_cmphex(status & BCM2835_I2C_S_ERR, ==, BCM2835_I2C_S_ERR);
++
++    status = tmp102_i2c_start_status(true);
++    g_assert_cmphex(status & BCM2835_I2C_S_ERR, ==, BCM2835_I2C_S_ERR);
++
++    qtest_qom_set_bool(global_qtest, TMP102_TEST_ID, "inject-nack", false);
++}
++
++int main(int argc, char **argv)
++{
++    int ret;
++
++    g_test_init(&argc, &argv, NULL);
++
++    qtest_add_func("/tmp102/fault/corrupt-data", test_corrupt_data);
++    qtest_add_func("/tmp102/fault/stuck-alert", test_stuck_alert);
++    qtest_add_func("/tmp102/fault/inject-nack", test_inject_nack);
++
++    qtest_start("-M raspi2b -display none "
++                "-device tmp102,id=" TMP102_TEST_ID
++                ",address=0x48,bus=i2c-bus.1,temperature=25000");
++    ret = g_test_run();
++    qtest_end();
++
++    return ret;
++}
+diff --git a/tests/qtest/tmp102-migration-test.c b/tests/qtest/tmp102-migration-test.c
+index 6e60798..3392b3b 100644
+--- a/tests/qtest/tmp102-migration-test.c
++++ b/tests/qtest/tmp102-migration-test.c
+@@ -130,6 +130,10 @@ static void test_tmp102_migrate(void)
+     t_low = tmp102_i2c_get16(src, TMP102_REG_T_LOW);
+     t_high = tmp102_i2c_get16(src, TMP102_REG_T_HIGH);
+ 
++    qtest_qom_set_bool(src, TMP102_TEST_ID, "inject-corrupt-data", true);
++    qtest_qom_set_bool(src, TMP102_TEST_ID, "stuck-alert", true);
++    qtest_qom_set_bool(src, TMP102_TEST_ID, "inject-nack", true);
++
+     g_assert_cmpint(qmp_tmp102_get_temperature(dst, TMP102_TEST_ID), ==, 0);
+ 
+     migrate_incoming_qmp(dst, "tcp:127.0.0.1:0", NULL, "{}");
+@@ -139,6 +143,14 @@ static void test_tmp102_migrate(void)
+     wait_for_migration_complete(dst);
+ 
+     g_assert_cmpint(qmp_tmp102_get_temperature(dst, TMP102_TEST_ID), ==, 80000);
++    g_assert_true(qtest_qom_get_bool(dst, TMP102_TEST_ID,
++                                     "inject-corrupt-data"));
++    g_assert_true(qtest_qom_get_bool(dst, TMP102_TEST_ID, "stuck-alert"));
++    g_assert_true(qtest_qom_get_bool(dst, TMP102_TEST_ID, "inject-nack"));
++
++    qtest_qom_set_bool(dst, TMP102_TEST_ID, "inject-corrupt-data", false);
++    qtest_qom_set_bool(dst, TMP102_TEST_ID, "inject-nack", false);
++
+     g_assert_cmphex(tmp102_i2c_get16(dst, TMP102_REG_CONFIG), ==, config);
+     g_assert_cmphex(tmp102_i2c_get16(dst, TMP102_REG_T_LOW), ==, t_low);
+     g_assert_cmphex(tmp102_i2c_get16(dst, TMP102_REG_T_HIGH), ==, t_high);
+-- 
+2.39.5 (Apple Git-154)
+

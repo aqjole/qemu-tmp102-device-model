@@ -1,7 +1,7 @@
 From 9a493541dfa7812e70509a8b36511df56b05de05 Mon Sep 17 00:00:00 2001
 From: aqjole <aqjole@gmail.com>
 Date: Sat, 4 Jul 2026 17:16:31 +0900
-Subject: [PATCH 17/17] Add TMP102 migration qtest
+Subject: [PATCH 17/18] Add TMP102 migration qtest
 
 ---
  tests/qtest/meson.build             |   5 +

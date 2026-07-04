@@ -130,6 +130,10 @@ static void test_tmp102_migrate(void)
     t_low = tmp102_i2c_get16(src, TMP102_REG_T_LOW);
     t_high = tmp102_i2c_get16(src, TMP102_REG_T_HIGH);
 
+    qtest_qom_set_bool(src, TMP102_TEST_ID, "inject-corrupt-data", true);
+    qtest_qom_set_bool(src, TMP102_TEST_ID, "stuck-alert", true);
+    qtest_qom_set_bool(src, TMP102_TEST_ID, "inject-nack", true);
+
     g_assert_cmpint(qmp_tmp102_get_temperature(dst, TMP102_TEST_ID), ==, 0);
 
     migrate_incoming_qmp(dst, "tcp:127.0.0.1:0", NULL, "{}");
@@ -139,6 +143,14 @@ static void test_tmp102_migrate(void)
     wait_for_migration_complete(dst);
 
     g_assert_cmpint(qmp_tmp102_get_temperature(dst, TMP102_TEST_ID), ==, 80000);
+    g_assert_true(qtest_qom_get_bool(dst, TMP102_TEST_ID,
+                                     "inject-corrupt-data"));
+    g_assert_true(qtest_qom_get_bool(dst, TMP102_TEST_ID, "stuck-alert"));
+    g_assert_true(qtest_qom_get_bool(dst, TMP102_TEST_ID, "inject-nack"));
+
+    qtest_qom_set_bool(dst, TMP102_TEST_ID, "inject-corrupt-data", false);
+    qtest_qom_set_bool(dst, TMP102_TEST_ID, "inject-nack", false);
+
     g_assert_cmphex(tmp102_i2c_get16(dst, TMP102_REG_CONFIG), ==, config);
     g_assert_cmphex(tmp102_i2c_get16(dst, TMP102_REG_T_LOW), ==, t_low);
     g_assert_cmphex(tmp102_i2c_get16(dst, TMP102_REG_T_HIGH), ==, t_high);

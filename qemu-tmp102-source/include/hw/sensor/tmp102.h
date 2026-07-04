@@ -29,6 +29,9 @@ OBJECT_DECLARE_SIMPLE_TYPE(TMP102State, TMP102)
  * @alert_asserted: logical ALERT state before POL is applied.
  * @detect_falling: false while waiting for high threshold, true while waiting
  *                  for low threshold.
+ * @inject_corrupt_data: return invalid temperature bytes when reading.
+ * @stuck_alert: keep ALERT output fixed at @stuck_alert_level.
+ * @inject_nack: NACK I2C transfers at START.
  *
  * The external QOM temperature property should use milli-Celsius, matching the
  * TMP105 model. Internally, sixteenths of a degree maps directly to the
@@ -53,6 +56,11 @@ struct TMP102State {
     bool detect_falling;
     uint8_t high_faults;
     uint8_t low_faults;
+
+    bool inject_corrupt_data;
+    bool stuck_alert;
+    bool stuck_alert_level;
+    bool inject_nack;
 };
 
 #endif

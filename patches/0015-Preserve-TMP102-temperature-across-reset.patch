@@ -1,7 +1,7 @@
 From 993547a2ed13e0914c37d025b91f4b18ad4eb106 Mon Sep 17 00:00:00 2001
 From: aqjole <aqjole@gmail.com>
 Date: Sat, 4 Jul 2026 15:46:09 +0900
-Subject: [PATCH 15/17] Preserve TMP102 temperature across reset
+Subject: [PATCH 15/18] Preserve TMP102 temperature across reset
 
 ---
  hw/sensor/tmp102.c | 1 -

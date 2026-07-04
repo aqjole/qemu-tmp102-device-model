@@ -1,7 +1,7 @@
 From ce4ff9a9c291d3fcc08e12c6d21fda758ef10b44 Mon Sep 17 00:00:00 2001
 From: aqjole <aqjole@gmail.com>
 Date: Thu, 2 Jul 2026 21:46:42 +0900
-Subject: [PATCH 08/17] Implement TMP102 comparator alert
+Subject: [PATCH 08/18] Implement TMP102 comparator alert
 
 ---
  hw/sensor/tmp102.c        | 30 ++++++++++++++++++++++++++++++

@@ -1,7 +1,7 @@
 From 66dc173ebc505dd915b96a38fd8f26ef7d7991f2 Mon Sep 17 00:00:00 2001
 From: aqjole <aqjole@gmail.com>
 Date: Sat, 4 Jul 2026 16:08:36 +0900
-Subject: [PATCH 16/17] Add TMP102 VMState support
+Subject: [PATCH 16/18] Add TMP102 VMState support
 
 ---
  hw/sensor/tmp102.c        | 32 ++++++++++++++++++++++++++++++++

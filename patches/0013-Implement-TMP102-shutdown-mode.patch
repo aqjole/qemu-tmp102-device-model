@@ -1,7 +1,7 @@
 From 17db79bdf76adab400bdc0f655b9fe6b255a2ebd Mon Sep 17 00:00:00 2001
 From: aqjole <aqjole@gmail.com>
 Date: Fri, 3 Jul 2026 17:01:04 +0900
-Subject: [PATCH 13/17] Implement TMP102 shutdown mode
+Subject: [PATCH 13/18] Implement TMP102 shutdown mode
 
 ---
  hw/sensor/tmp102.c        | 12 ++++++++++++

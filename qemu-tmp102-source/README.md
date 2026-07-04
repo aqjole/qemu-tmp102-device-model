@@ -11,6 +11,7 @@ hw/sensor/tmp102.c
 include/hw/sensor/tmp102.h
 include/hw/sensor/tmp102_regs.h
 tests/qtest/tmp102-test.c
+tests/qtest/tmp102-fault-test.c
 tests/qtest/tmp102-migration-test.c
 integration-edits.patch
 ```

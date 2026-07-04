@@ -1,7 +1,7 @@
 From 95f98268d6b6cfbc7ff73c42a8c1768346eb2f4e Mon Sep 17 00:00:00 2001
 From: aqjole <aqjole@gmail.com>
 Date: Sun, 21 Jun 2026 14:23:31 +0900
-Subject: [PATCH 02/17] Add TMP102 device skeleton
+Subject: [PATCH 02/18] Add TMP102 device skeleton
 
 ---
  hw/sensor/tmp102.c | 71 ++++++++++++++++++++++++++++++++++++++++++++++

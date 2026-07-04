@@ -1,7 +1,7 @@
 From 0bdd80afcd1e1224257aa4584269eeb2ba6a1df6 Mon Sep 17 00:00:00 2001
 From: aqjole <aqjole@gmail.com>
 Date: Thu, 2 Jul 2026 21:55:34 +0900
-Subject: [PATCH 10/17] Report TMP102 alert status bit
+Subject: [PATCH 10/18] Report TMP102 alert status bit
 
 ---
  hw/sensor/tmp102.c        | 22 ++++++++++++++++++----

@@ -1,7 +1,7 @@
 From 3c73757ef52c66b26efbd380ea64062dbbe845b5 Mon Sep 17 00:00:00 2001
 From: aqjole <aqjole@gmail.com>
 Date: Sun, 21 Jun 2026 18:25:52 +0900
-Subject: [PATCH 04/17] Implement TMP102 basic register I/O
+Subject: [PATCH 04/18] Implement TMP102 basic register I/O
 
 ---
  hw/sensor/tmp102.c | 72 ++++++++++++++++++++++++++++++++++++++++++++++

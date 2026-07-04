@@ -1,7 +1,7 @@
 From 0764925afdafa303863f41224cc0cac25356fca2 Mon Sep 17 00:00:00 2001
 From: aqjole <aqjole@gmail.com>
 Date: Thu, 2 Jul 2026 21:50:16 +0900
-Subject: [PATCH 09/17] Test TMP102 alert polarity
+Subject: [PATCH 09/18] Test TMP102 alert polarity
 
 ---
  tests/qtest/tmp102-test.c | 11 +++++++++++

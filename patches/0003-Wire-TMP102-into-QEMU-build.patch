@@ -1,7 +1,7 @@
 From 9cba90c89c44471683e25390b87b42c064494568 Mon Sep 17 00:00:00 2001
 From: aqjole <aqjole@gmail.com>
 Date: Sun, 21 Jun 2026 15:34:04 +0900
-Subject: [PATCH 03/17] Wire TMP102 into QEMU build
+Subject: [PATCH 03/18] Wire TMP102 into QEMU build
 
 ---
  hw/sensor/Kconfig     | 5 +++++

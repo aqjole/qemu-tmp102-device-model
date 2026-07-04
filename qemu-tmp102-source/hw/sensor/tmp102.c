@@ -57,7 +57,8 @@ static void tmp102_faults_reset(TMP102State *s)
 
 static void tmp102_alert_update(TMP102State *s)
 {
-    qemu_set_irq(s->alert, tmp102_alert_level(s));
+    qemu_set_irq(s->alert,
+                 s->stuck_alert ? s->stuck_alert_level : tmp102_alert_level(s));
 }
 
 static void tmp102_alert_sample(TMP102State *s, bool one_shot)
@@ -180,6 +181,54 @@ static void tmp102_set_temperature(Object *obj, Visitor *v, const char *name,
     tmp102_alert_sample(s, false);
 }
 
+static bool tmp102_get_inject_corrupt_data(Object *obj, Error **errp)
+{
+    TMP102State *s = TMP102(obj);
+
+    return s->inject_corrupt_data;
+}
+
+static void tmp102_set_inject_corrupt_data(Object *obj, bool value,
+                                           Error **errp)
+{
+    TMP102State *s = TMP102(obj);
+
+    s->inject_corrupt_data = value;
+}
+
+static bool tmp102_get_stuck_alert(Object *obj, Error **errp)
+{
+    TMP102State *s = TMP102(obj);
+
+    return s->stuck_alert;
+}
+
+static void tmp102_set_stuck_alert(Object *obj, bool value, Error **errp)
+{
+    TMP102State *s = TMP102(obj);
+
+    if (value && !s->stuck_alert) {
+        s->stuck_alert_level = tmp102_alert_level(s);
+    }
+
+    s->stuck_alert = value;
+    tmp102_alert_update(s);
+}
+
+static bool tmp102_get_inject_nack(Object *obj, Error **errp)
+{
+    TMP102State *s = TMP102(obj);
+
+    return s->inject_nack;
+}
+
+static void tmp102_set_inject_nack(Object *obj, bool value, Error **errp)
+{
+    TMP102State *s = TMP102(obj);
+
+    s->inject_nack = value;
+}
+
 static void tmp102_read(TMP102State *s)
 {
     uint16_t value;
@@ -189,7 +238,7 @@ static void tmp102_read(TMP102State *s)
 
     switch (s->pointer & TMP102_POINTER_MASK) {
     case TMP102_REG_TEMPERATURE:
-        value = tmp102_encode_temperature(s);
+        value = s->inject_corrupt_data ? 0xffff : tmp102_encode_temperature(s);
         s->buf[s->len++] = value >> 8;
         s->buf[s->len++] = value >> 0;
         break;
@@ -286,6 +335,11 @@ static int tmp102_event(I2CSlave *i2c, enum i2c_event event)
 {
     TMP102State *s = TMP102(i2c);
 
+    if (s->inject_nack &&
+        (event == I2C_START_SEND || event == I2C_START_RECV)) {
+        return 1;
+    }
+
     if (event == I2C_START_RECV) {
         tmp102_read(s);
     }
@@ -319,7 +373,7 @@ static int tmp102_post_load(void *opaque, int version_id)
 
 static const VMStateDescription vmstate_tmp102 = {
     .name = "TMP102",
-    .version_id = 1,
+    .version_id = 2,
     .minimum_version_id = 1,
     .post_load = tmp102_post_load,
     .fields = (const VMStateField[]) {
@@ -334,6 +388,10 @@ static const VMStateDescription vmstate_tmp102 = {
         VMSTATE_BOOL(detect_falling, TMP102State),
         VMSTATE_UINT8(high_faults, TMP102State),
         VMSTATE_UINT8(low_faults, TMP102State),
+        VMSTATE_BOOL_V(inject_corrupt_data, TMP102State, 2),
+        VMSTATE_BOOL_V(stuck_alert, TMP102State, 2),
+        VMSTATE_BOOL_V(stuck_alert_level, TMP102State, 2),
+        VMSTATE_BOOL_V(inject_nack, TMP102State, 2),
         VMSTATE_I2C_SLAVE(i2c, TMP102State),
         VMSTATE_END_OF_LIST()
     }
@@ -353,6 +411,15 @@ static void tmp102_initfn(Object *obj)
     object_property_add(obj, "temperature", "int",
                         tmp102_get_temperature,
                         tmp102_set_temperature, NULL, NULL);
+    object_property_add_bool(obj, "inject-corrupt-data",
+                             tmp102_get_inject_corrupt_data,
+                             tmp102_set_inject_corrupt_data);
+    object_property_add_bool(obj, "stuck-alert",
+                             tmp102_get_stuck_alert,
+                             tmp102_set_stuck_alert);
+    object_property_add_bool(obj, "inject-nack",
+                             tmp102_get_inject_nack,
+                             tmp102_set_inject_nack);
 }
 
 static void tmp102_class_init(ObjectClass *klass, const void *data)

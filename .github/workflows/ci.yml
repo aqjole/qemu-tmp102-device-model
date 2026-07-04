@@ -92,6 +92,7 @@ jobs:
           cd "$RUNNER_TEMP/qemu"
           meson test -C build --print-errorlogs \
             qemu:qtest-arm/qos-test \
+            qemu:qtest-arm/tmp102-fault-test \
             qemu:qtest-arm/tmp102-migration-test
 
       - name: Run firmware host test

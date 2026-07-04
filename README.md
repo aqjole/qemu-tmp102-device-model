@@ -46,12 +46,13 @@ CI currently verifies:
 - The patch series applies cleanly to the pinned QEMU base.
 - `qemu-system-arm` builds with the TMP102 device model.
 - `qemu:qtest-arm/qos-test` passes, including the TMP102 QoS tests.
+- `qemu:qtest-arm/tmp102-fault-test` passes for runtime fault injection.
 - `qemu:qtest-arm/tmp102-migration-test` passes for VMState migration.
 - `make -C firmware/tmp102-demo test` passes for host-side decode logic.
 
 ## Development History
 
-The QEMU device model was developed as a 17-commit patch series. The patches in
+The QEMU device model was developed as an 18-commit patch series. The patches in
 `patches/` preserve that progression:
 
 ```text
@@ -72,6 +73,7 @@ The QEMU device model was developed as a 17-commit patch series. The patches in
 0015  preserve command-line temperature across reset
 0016  VMState support and command-line temperature qtest
 0017  migration qtest for VMState
+0018  runtime fault injection
 ```
 
 For browsing the final source directly, see `qemu-tmp102-source/`. For applying
@@ -104,12 +106,13 @@ Run the ARM qtests:
 cd qemu
 meson test -C build --print-errorlogs \
   qemu:qtest-arm/qos-test \
+  qemu:qtest-arm/tmp102-fault-test \
   qemu:qtest-arm/tmp102-migration-test
 ```
 
 The TMP102 tests cover register I/O, temperature encoding, ALERT behavior,
 interrupt mode, shutdown/one-shot behavior, command-line temperature
-initialization, and VMState migration.
+initialization, runtime fault injection, and VMState migration.
 
 You can also confirm QEMU knows about the device:
 
@@ -185,6 +188,19 @@ Expected output:
 ```text
 TMP102 raw: 0x5000
 Temperature: 80 C
+```
+
+To demonstrate firmware error handling with an injected I2C NACK:
+
+```sh
+cd firmware/tmp102-demo
+make run-fault
+```
+
+Expected output:
+
+```text
+TMP102 read failed
 ```
 
 To quit QEMU from the terminal, press `Ctrl-A`, then `X`.

@@ -1,7 +1,7 @@
 From 0ff8528123b47742c8438abefeee12294436ba8c Mon Sep 17 00:00:00 2001
 From: aqjole <aqjole@gmail.com>
 Date: Fri, 3 Jul 2026 21:04:09 +0900
-Subject: [PATCH 14/17] Implement TMP102 one-shot mode
+Subject: [PATCH 14/18] Implement TMP102 one-shot mode
 
 ---
  hw/sensor/tmp102.c        | 15 +++++++++++----

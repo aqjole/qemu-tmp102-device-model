@@ -28,5 +28,8 @@ test: test_tmp102_driver
 run: $(FIRMWARE_BIN)
 	$(QEMU) -M raspi2b -display none -serial mon:stdio -bios $(FIRMWARE_BIN) -device tmp102,address=0x48,bus=i2c-bus.1,temperature=25000
 
+run-fault: $(FIRMWARE_BIN)
+	$(QEMU) -M raspi2b -display none -serial mon:stdio -bios $(FIRMWARE_BIN) -device tmp102,address=0x48,bus=i2c-bus.1,temperature=25000,inject-nack=true
+
 clean:
 	rm -f $(FIRMWARE_ELF) $(FIRMWARE_BIN) firmware.map test_tmp102_driver
