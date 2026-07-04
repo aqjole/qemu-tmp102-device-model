@@ -5,6 +5,11 @@
 This repo tracks a learning project that adds a TMP102 I2C temperature-sensor
 model to QEMU and a tiny bare-metal ARM firmware demo that talks to it.
 
+Why this project:
+- It models real hardware behavior inside QEMU instead of mocking it in app code.
+- It validates the model with qtests, including VMState migration coverage.
+- It keeps the work reproducible as an ordered patch series applied by CI.
+
 The local upstream QEMU checkout lives in `qemu/` and is intentionally ignored by git. Project artifacts such as docs, firmware, patch series, and CI files are tracked here.
 
 ## Layout
@@ -36,6 +41,13 @@ GitHub Actions checks the project from a clean base: it clones QEMU at the
 pinned commit the patch series was developed against, applies `patches/` with
 `git am`, builds `qemu-system-arm`, runs the TMP102 qtests, and runs the
 firmware host test.
+
+CI currently verifies:
+- The patch series applies cleanly to the pinned QEMU base.
+- `qemu-system-arm` builds with the TMP102 device model.
+- `qemu:qtest-arm/qos-test` passes, including the TMP102 QoS tests.
+- `qemu:qtest-arm/tmp102-migration-test` passes for VMState migration.
+- `make -C firmware/tmp102-demo test` passes for host-side decode logic.
 
 ## Development History
 
