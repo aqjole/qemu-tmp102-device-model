@@ -1,0 +1,94 @@
+/*
+ * Texas Instruments TMP102 Temperature Sensor register definitions
+ *
+ * Datasheet:
+ * https://www.ti.com/lit/ds/symlink/tmp102.pdf
+ *
+ * This work is licensed under the terms of the GNU GPL, version 2 or
+ * later. See the COPYING file in the top-level directory.
+ */
+
+#ifndef TMP102_REGS_H
+#define TMP102_REGS_H
+
+/*
+ * TMP102 7-bit I2C target addresses selected by ADD0:
+ * GND=0x48, V+=0x49, SDA=0x4a, SCL=0x4b.
+ */
+#define TMP102_ADDR_DEFAULT 0x48
+#define TMP102_ADDR_MIN     0x48
+#define TMP102_ADDR_MAX     0x4b
+
+/**
+ * TMP102Reg:
+ * @TMP102_REG_TEMPERATURE: Temperature register
+ * @TMP102_REG_CONFIG: Configuration register
+ * @TMP102_REG_T_LOW: Low temperature limit register
+ * @TMP102_REG_T_HIGH: High temperature limit register
+ */
+typedef enum TMP102Reg {
+    TMP102_REG_TEMPERATURE = 0,
+    TMP102_REG_CONFIG,
+    TMP102_REG_T_LOW,
+    TMP102_REG_T_HIGH,
+} TMP102Reg;
+
+#define TMP102_POINTER_MASK 0x03
+
+#define TMP102_TEMP_RESET   0x0000
+#define TMP102_CONFIG_RESET 0x60a0
+#define TMP102_T_LOW_RESET  0x4b00
+#define TMP102_T_HIGH_RESET 0x5000
+
+/* Configuration register bits. */
+#define TMP102_CONFIG_OS       0x8000
+#define TMP102_CONFIG_R1       0x4000
+#define TMP102_CONFIG_R0       0x2000
+#define TMP102_CONFIG_F1       0x1000
+#define TMP102_CONFIG_F0       0x0800
+#define TMP102_CONFIG_POL      0x0400
+#define TMP102_CONFIG_TM       0x0200
+#define TMP102_CONFIG_SD       0x0100
+#define TMP102_CONFIG_CR1      0x0080
+#define TMP102_CONFIG_CR0      0x0040
+#define TMP102_CONFIG_AL       0x0020
+#define TMP102_CONFIG_EM       0x0010
+#define TMP102_CONFIG_UNUSED   0x000f
+
+#define TMP102_CONFIG_RESOLUTION \
+    (TMP102_CONFIG_R1 | TMP102_CONFIG_R0)
+
+#define TMP102_CONFIG_FAULT_QUEUE \
+    (TMP102_CONFIG_F1 | TMP102_CONFIG_F0)
+
+#define TMP102_CONFIG_CONVERSION_RATE \
+    (TMP102_CONFIG_CR1 | TMP102_CONFIG_CR0)
+
+#define TMP102_CONFIG_READ_ONLY \
+    (TMP102_CONFIG_RESOLUTION | TMP102_CONFIG_AL)
+
+#define TMP102_CONFIG_WRITABLE \
+    (TMP102_CONFIG_OS | TMP102_CONFIG_FAULT_QUEUE | TMP102_CONFIG_POL | \
+     TMP102_CONFIG_TM | TMP102_CONFIG_SD | TMP102_CONFIG_CONVERSION_RATE | \
+     TMP102_CONFIG_EM)
+
+#define TMP102_CONFIG_FAULTS_1 0x0000
+#define TMP102_CONFIG_FAULTS_2 TMP102_CONFIG_F0
+#define TMP102_CONFIG_FAULTS_4 TMP102_CONFIG_F1
+#define TMP102_CONFIG_FAULTS_6 (TMP102_CONFIG_F1 | TMP102_CONFIG_F0)
+
+#define TMP102_CONFIG_RATE_0_25HZ 0x0000
+#define TMP102_CONFIG_RATE_1HZ    TMP102_CONFIG_CR0
+#define TMP102_CONFIG_RATE_4HZ    TMP102_CONFIG_CR1
+#define TMP102_CONFIG_RATE_8HZ    (TMP102_CONFIG_CR1 | TMP102_CONFIG_CR0)
+
+/* One temperature LSB is 0.0625 degrees C. */
+#define TMP102_TEMP_LSB_MICRO_C 62500
+
+#define TMP102_TEMP_NORMAL_SHIFT   4
+#define TMP102_TEMP_NORMAL_BITS    12
+#define TMP102_TEMP_EXTENDED_SHIFT 3
+#define TMP102_TEMP_EXTENDED_BITS  13
+#define TMP102_TEMP_EXTENDED_FLAG  0x0001
+
+#endif

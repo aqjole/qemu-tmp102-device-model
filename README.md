@@ -13,6 +13,7 @@ The local upstream QEMU checkout lives in `qemu/` and is intentionally ignored b
 ├── docs/
 ├── firmware/tmp102-demo/
 ├── patches/
+├── qemu-tmp102-source/
 ├── reference/
 ├── review_book.md
 └── ci/
@@ -20,6 +21,10 @@ The local upstream QEMU checkout lives in `qemu/` and is intentionally ignored b
 
 `qemu/`, `reference/`, `review_book.md`, and the implementation plan are local
 learning/work files and are ignored by git.
+
+`qemu-tmp102-source/` contains a browseable snapshot of only the TMP102 QEMU
+source files that were created for this project. `patches/` contains the full
+QEMU patch series, including small build-system integration edits.
 
 ## Build QEMU
 
