@@ -11,3 +11,9 @@ reference/tmp105/
 # Upstream QEMU checkout and generated build output live locally.
 # Track project docs/patches here instead of committing the full source tree.
 qemu/
+
+# Firmware demo build output.
+firmware/tmp102-demo/firmware.elf
+firmware/tmp102-demo/firmware.bin
+firmware/tmp102-demo/firmware.map
+firmware/tmp102-demo/test_tmp102_driver
